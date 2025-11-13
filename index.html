@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peers 조회</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Peers 조회</h1>
+        
+        <nav class="menu">
+            <a href="index.html" class="menu-item active">Peers 조회</a>
+            <a href="evaluation.html" class="menu-item">평가 입력</a>
+            <a href="results.html" class="menu-item">평가 결과</a>
+        </nav>
+
+        <div id="loading" class="loading" style="display: none;">
+            데이터를 불러오는 중...
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="results" class="results">
+            <table id="peersTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>이름</th>
+                    </tr>
+                </thead>
+                <tbody id="peersTableBody">
+                    <tr>
+                        <td colspan="2" class="empty-message">데이터를 불러오는 중...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="stats" class="stats" style="display: none;">
+            <p>총 <span id="totalCount">0</span>개의 항목이 있습니다.</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="script.js"></script>
+</body>
+</html>
+
