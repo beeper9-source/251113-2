@@ -77,6 +77,7 @@ async function loadResults() {
 
         // 탭 표시
         document.getElementById('viewTabs').style.display = 'flex';
+        document.getElementById('copyBtn').style.display = 'block';
 
         // 기본 뷰를 이름별 누계로 설정
         switchView('summary');
@@ -237,31 +238,109 @@ function switchView(viewType) {
     const summaryTab = document.querySelector('.tab-btn[data-view="summary"]');
     const resultsDiv = document.getElementById('results');
     const summaryDiv = document.getElementById('summaryResults');
+    const copyBtn = document.getElementById('copyBtn');
 
     if (viewType === 'list') {
         listTab.classList.add('active');
         summaryTab.classList.remove('active');
         resultsDiv.style.display = 'block';
         summaryDiv.style.display = 'none';
+        copyBtn.style.display = 'none';
     } else {
         summaryTab.classList.add('active');
         listTab.classList.remove('active');
         resultsDiv.style.display = 'none';
         summaryDiv.style.display = 'block';
+        copyBtn.style.display = 'block';
         displaySummary();
     }
+}
+
+// 평가 결과 복사 함수
+async function copyResults() {
+    if (!summaryData || summaryData.length === 0) {
+        showCopyMessage('복사할 데이터가 없습니다.', false);
+        return;
+    }
+
+    try {
+        // 현재 페이지 URL
+        const pageUrl = window.location.href;
+
+        // 이름별 누계점수 텍스트 생성
+        let copyText = '=== 평가 결과 (이름별 누계) ===\n\n';
+        
+        summaryData.forEach((item, index) => {
+            copyText += `${index + 1}. ${item.name}\n`;
+            copyText += `   총점: ${item.totalScore}점\n`;
+            copyText += `   평가 횟수: ${item.count}회\n`;
+            if (index < summaryData.length - 1) {
+                copyText += '\n';
+            }
+        });
+
+        copyText += `\n\n페이지 URL: ${pageUrl}`;
+        copyText += `\n생성일시: ${new Date().toLocaleString('ko-KR')}`;
+
+        // 클립보드에 복사
+        await navigator.clipboard.writeText(copyText);
+        
+        // 복사 성공 메시지
+        showCopyMessage('결과가 클립보드에 복사되었습니다!', true);
+        
+        // 버튼 텍스트 일시 변경
+        const copyBtnText = document.getElementById('copyBtnText');
+        const originalText = copyBtnText.textContent;
+        copyBtnText.textContent = '복사 완료!';
+        
+        setTimeout(() => {
+            copyBtnText.textContent = originalText;
+        }, 2000);
+
+    } catch (err) {
+        console.error('복사 실패:', err);
+        showCopyMessage('복사에 실패했습니다. 다시 시도해주세요.', false);
+    }
+}
+
+// 복사 메시지 표시 함수
+function showCopyMessage(message, isSuccess) {
+    // 기존 메시지 제거
+    const existingMessage = document.getElementById('copyMessage');
+    if (existingMessage) {
+        existingMessage.remove();
+    }
+
+    // 새 메시지 생성
+    const messageDiv = document.createElement('div');
+    messageDiv.id = 'copyMessage';
+    messageDiv.className = isSuccess ? 'copy-success' : 'copy-error';
+    messageDiv.textContent = message;
+    
+    // 메뉴 아래에 메시지 추가
+    const viewTabs = document.getElementById('viewTabs');
+    viewTabs.parentNode.insertBefore(messageDiv, viewTabs.nextSibling);
+
+    // 3초 후 메시지 제거
+    setTimeout(() => {
+        if (messageDiv.parentNode) {
+            messageDiv.remove();
+        }
+    }, 3000);
 }
 
 // 페이지 로드 시 자동으로 데이터 불러오기
 window.addEventListener('DOMContentLoaded', loadResults);
 
-// 탭 버튼 이벤트 리스너 (이벤트 위임 사용)
+// 탭 버튼 및 복사 버튼 이벤트 리스너 (이벤트 위임 사용)
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('tab-btn')) {
         const viewType = e.target.getAttribute('data-view');
         if (viewType) {
             switchView(viewType);
         }
+    } else if (e.target.id === 'copyBtn' || e.target.closest('#copyBtn')) {
+        copyResults();
     }
 });
 
