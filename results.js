@@ -245,6 +245,11 @@ function getImagePath(name) {
         return 'img/park.png';
     }
     
+    // 김세영은 say 이미지
+    if (name === '김세영') {
+        return 'img/say.jfif';
+    }
+    
     // 김구는 일자별로 랜덤하게 kimku, kimku2, kimku3 중 선택
     if (name === '김구') {
         const images = ['img/kimku.png', 'img/kimku2.png', 'img/kimku3.png'];
