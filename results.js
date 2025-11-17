@@ -205,9 +205,15 @@ function displaySummary() {
         // 막대그래프 비율 계산 (최대값 대비)
         const barPercentage = (item.totalScore / maxTotalScore) * 100;
         
+        // 이미지 경로 결정
+        const imagePath = getImagePath(item.name);
+        
         summaryCard.innerHTML = `
             <div class="summary-header">
-                <div class="peer-name-large">${item.name}</div>
+                <div class="peer-info-with-image">
+                    ${imagePath ? `<img src="${imagePath}" alt="${item.name}" class="peer-image">` : ''}
+                    <div class="peer-name-large">${item.name}</div>
+                </div>
                 <div class="summary-stats">
                     <div class="stat-item">
                         <span class="stat-label">평가 횟수</span>
@@ -230,6 +236,42 @@ function displaySummary() {
         `;
         summaryList.appendChild(summaryCard);
     });
+}
+
+// 이름에 따른 이미지 경로 반환 함수
+function getImagePath(name) {
+    // 박지우는 park 이미지
+    if (name === '박지우') {
+        return 'img/park.png';
+    }
+    
+    // 김구는 일자별로 랜덤하게 kimku, kimku2, kimku3 중 선택
+    if (name === '김구') {
+        const images = ['img/kimku.png', 'img/kimku2.png', 'img/kimku3.png'];
+        const imageIndex = getDayBasedRandom(images.length);
+        return images[imageIndex];
+    }
+    
+    // 다른 이름은 이미지 없음
+    return null;
+}
+
+// 일자별로 랜덤한 값을 반환하는 함수 (같은 날에는 같은 값)
+function getDayBasedRandom(max) {
+    // 오늘 날짜를 문자열로 변환 (YYYY-MM-DD)
+    const today = new Date();
+    const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    // 날짜 문자열을 시드로 사용하여 간단한 해시 생성
+    let hash = 0;
+    for (let i = 0; i < dateString.length; i++) {
+        const char = dateString.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // 32bit 정수로 변환
+    }
+    
+    // 해시 값을 양수로 변환하고 max로 나눈 나머지 반환
+    return Math.abs(hash) % max;
 }
 
 // 탭 전환 함수
