@@ -26,16 +26,23 @@
             <table id="peersTable">
                 <thead>
                     <tr>
-                        <th>ID</th>
                         <th>이름</th>
                     </tr>
                 </thead>
                 <tbody id="peersTableBody">
                     <tr>
-                        <td colspan="2" class="empty-message">데이터를 불러오는 중...</td>
+                        <td class="empty-message">데이터를 불러오는 중...</td>
                     </tr>
                 </tbody>
             </table>
+        </div>
+
+        <!-- 이미지 확대 모달 -->
+        <div id="imageModal" class="image-modal" style="display: none;">
+            <div class="image-modal-content">
+                <span class="image-modal-close">&times;</span>
+                <img id="modalImage" src="" alt="확대 이미지">
+            </div>
         </div>
 
         <div id="stats" class="stats" style="display: none;">

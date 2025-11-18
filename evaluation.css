@@ -81,18 +81,48 @@ h2 {
     font-size: 16px;
 }
 
-.evaluator-section input {
+.evaluator-section input,
+.evaluator-section select {
     width: 100%;
     padding: 12px;
     border: 2px solid #dee2e6;
     border-radius: 6px;
     font-size: 16px;
     transition: border-color 0.3s ease;
+    background: white;
+    cursor: pointer;
 }
 
-.evaluator-section input:focus {
+.evaluator-section input:focus,
+.evaluator-section select:focus {
     outline: none;
     border-color: #667eea;
+}
+
+.evaluator-select-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.evaluator-select-container select {
+    flex: 1;
+    min-width: 200px;
+}
+
+.evaluator-image-container {
+    display: flex;
+    align-items: center;
+}
+
+.evaluator-image {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #667eea;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 .controls {
@@ -195,13 +225,28 @@ h2 {
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
 }
 
+.peer-name-with-image {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.peer-evaluation-image {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #667eea;
+    box-shadow: 0 2px 6px rgba(102, 126, 234, 0.2);
+}
+
 .peer-name {
     font-size: 1.3em;
     font-weight: 700;
     color: #667eea;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #dee2e6;
 }
 
 .form-group {

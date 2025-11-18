@@ -16,13 +16,101 @@ const peersList = document.getElementById('peersList');
 
 // 전역 변수
 let peersData = [];
+let allPeersList = [];
 
-// Peers 목록 불러오기
+// 이름에 따른 이미지 경로 반환 함수
+function getImagePath(name) {
+    // 박지우는 park 이미지
+    if (name === '박지우') {
+        return 'img/park.png';
+    }
+    
+    // 김세영은 say 이미지
+    if (name === '김세영') {
+        return 'img/say.jfif';
+    }
+    
+    // 김구는 일자별로 랜덤하게 kimku, kimku2, kimku3 중 선택
+    if (name === '김구') {
+        const images = ['img/kimku.png', 'img/kimku2.png', 'img/kimku3.png'];
+        const imageIndex = getDayBasedRandom(images.length);
+        return images[imageIndex];
+    }
+    
+    // 다른 이름은 이미지 없음
+    return null;
+}
+
+// 일자별로 랜덤한 값을 반환하는 함수 (같은 날에는 같은 값)
+function getDayBasedRandom(max) {
+    // 오늘 날짜를 문자열로 변환 (YYYY-MM-DD)
+    const today = new Date();
+    const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    // 날짜 문자열을 시드로 사용하여 간단한 해시 생성
+    let hash = 0;
+    for (let i = 0; i < dateString.length; i++) {
+        const char = dateString.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // 32bit 정수로 변환
+    }
+    
+    // 해시 값을 양수로 변환하고 max로 나눈 나머지 반환
+    return Math.abs(hash) % max;
+}
+
+// 평가자 목록 불러오기
+async function loadEvaluatorList() {
+    try {
+        const { data, error: fetchError } = await supabase
+            .from('peers')
+            .select('*')
+            .order('name', { ascending: true });
+
+        if (fetchError) {
+            throw fetchError;
+        }
+
+        allPeersList = data || [];
+        
+        // 드롭다운에 옵션 추가
+        evaluatorNameInput.innerHTML = '<option value="">선택하세요</option>';
+        allPeersList.forEach(peer => {
+            const option = document.createElement('option');
+            option.value = peer.name;
+            option.textContent = peer.name;
+            evaluatorNameInput.appendChild(option);
+        });
+    } catch (err) {
+        console.error('Error loading evaluator list:', err);
+    }
+}
+
+// 평가자 선택 시 이미지 표시
+function updateEvaluatorImage() {
+    const selectedName = evaluatorNameInput.value;
+    const evaluatorImageContainer = document.getElementById('evaluatorImage');
+    const evaluatorImageSrc = document.getElementById('evaluatorImageSrc');
+    
+    if (selectedName) {
+        const imagePath = getImagePath(selectedName);
+        if (imagePath) {
+            evaluatorImageSrc.src = imagePath;
+            evaluatorImageContainer.style.display = 'block';
+        } else {
+            evaluatorImageContainer.style.display = 'none';
+        }
+    } else {
+        evaluatorImageContainer.style.display = 'none';
+    }
+}
+
+// Peers 목록 불러오기 (평가 대상)
 async function loadPeers() {
     // 평가자 이름 확인
     const evaluatorName = evaluatorNameInput.value.trim();
     if (!evaluatorName) {
-        showError('평가자 이름을 입력해주세요.');
+        showError('평가자 이름을 선택해주세요.');
         return;
     }
 
@@ -73,8 +161,18 @@ function displayEvaluationForm(peers) {
     peers.forEach(peer => {
         const peerCard = document.createElement('div');
         peerCard.className = 'peer-card';
+        
+        // 이미지 경로 가져오기
+        const imagePath = getImagePath(peer.name);
+        const imageHtml = imagePath 
+            ? `<img src="${imagePath}" alt="${peer.name}" class="peer-evaluation-image">`
+            : '';
+        
         peerCard.innerHTML = `
-            <div class="peer-name">${peer.name}</div>
+            <div class="peer-name-with-image">
+                ${imageHtml}
+                <div class="peer-name">${peer.name}</div>
+            </div>
             <div class="form-group">
                 <label for="criteria_${peer.id}">평가내용</label>
                 <textarea 
@@ -236,18 +334,17 @@ function showSuccess(message) {
 // 이벤트 리스너
 saveBtn.addEventListener('click', saveEvaluations);
 
-// 평가자 이름 입력 후 자동으로 peers 목록 불러오기
-evaluatorNameInput.addEventListener('blur', function() {
+// 평가자 선택 변경 시 이미지 업데이트 및 peers 목록 불러오기
+evaluatorNameInput.addEventListener('change', function() {
+    updateEvaluatorImage();
     const evaluatorName = this.value.trim();
     if (evaluatorName && (evaluationForm.style.display === 'none' || !evaluationForm.style.display)) {
         loadPeers();
     }
 });
 
-// Enter 키 입력 시에도 peers 목록 불러오기
-evaluatorNameInput.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        this.blur(); // blur 이벤트를 트리거하여 자동 로드
-    }
+// 페이지 로드 시 평가자 목록 불러오기
+window.addEventListener('DOMContentLoaded', function() {
+    loadEvaluatorList();
 });
 
