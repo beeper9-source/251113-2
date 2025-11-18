@@ -211,7 +211,7 @@ function displaySummary() {
         summaryCard.innerHTML = `
             <div class="summary-header">
                 <div class="peer-info-with-image">
-                    ${imagePath ? `<img src="${imagePath}" alt="${item.name}" class="peer-image">` : ''}
+                    ${imagePath ? `<img src="${imagePath}" alt="${item.name}" class="peer-image" data-image-src="${imagePath}" data-peer-name="${item.name}">` : ''}
                     <div class="peer-name-large">${item.name}</div>
                 </div>
                 <div class="summary-stats">
@@ -235,6 +235,17 @@ function displaySummary() {
             </div>
         `;
         summaryList.appendChild(summaryCard);
+        
+        // 이미지 클릭 이벤트 추가
+        if (imagePath) {
+            const peerImage = summaryCard.querySelector('.peer-image');
+            if (peerImage) {
+                peerImage.style.cursor = 'pointer';
+                peerImage.addEventListener('click', function() {
+                    openImageModal(this.src, this.getAttribute('data-peer-name'));
+                });
+            }
+        }
     });
 }
 
@@ -375,6 +386,50 @@ function showCopyMessage(message, isSuccess) {
         }
     }, 3000);
 }
+
+// 이미지 모달 열기
+function openImageModal(imageSrc, peerName) {
+    const modal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
+    const modalCaption = document.getElementById('modalCaption');
+    
+    modalImage.src = imageSrc;
+    modalCaption.textContent = peerName || '이미지';
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden'; // 스크롤 방지
+}
+
+// 이미지 모달 닫기
+function closeImageModal() {
+    const modal = document.getElementById('imageModal');
+    modal.style.display = 'none';
+    document.body.style.overflow = 'auto'; // 스크롤 복원
+}
+
+// 모달 이벤트 리스너
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('imageModal');
+    const closeBtn = document.querySelector('.modal-close');
+    
+    // 닫기 버튼 클릭
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeImageModal);
+    }
+    
+    // 모달 배경 클릭 시 닫기
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeImageModal();
+        }
+    });
+    
+    // ESC 키로 닫기
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display === 'flex') {
+            closeImageModal();
+        }
+    });
+});
 
 // 페이지 로드 시 자동으로 데이터 불러오기
 window.addEventListener('DOMContentLoaded', loadResults);
