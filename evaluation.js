@@ -157,6 +157,9 @@ async function loadPeers() {
 // 평가 폼 표시
 function displayEvaluationForm(peers) {
     peersList.innerHTML = '';
+    
+    // 평가자 이름 가져오기
+    const evaluatorName = evaluatorNameInput.value.trim();
 
     peers.forEach(peer => {
         const peerCard = document.createElement('div');
@@ -167,6 +170,36 @@ function displayEvaluationForm(peers) {
         const imageHtml = imagePath 
             ? `<img src="${imagePath}" alt="${peer.name}" class="peer-evaluation-image">`
             : '';
+        
+        // 평가자가 본인을 평가하는 경우 -50부터 50까지 옵션 추가
+        const isSelfEvaluation = evaluatorName === peer.name;
+        let scoreOptions = '<option value="">선택하지 않음</option>';
+        
+        if (isSelfEvaluation) {
+            // 본인 평가: -50점부터 50점까지 10점 단위
+            scoreOptions += `
+                <option value="-50">-50점</option>
+                <option value="-40">-40점</option>
+                <option value="-30">-30점</option>
+                <option value="-20">-20점</option>
+                <option value="-10">-10점</option>
+                <option value="0">0점</option>
+                <option value="10">10점</option>
+                <option value="20">20점</option>
+                <option value="30">30점</option>
+                <option value="40">40점</option>
+                <option value="50">50점</option>
+            `;
+        } else {
+            // 타인 평가: 양수 점수 옵션
+            scoreOptions += `
+                <option value="10">10점</option>
+                <option value="20">20점</option>
+                <option value="30">30점</option>
+                <option value="40">40점</option>
+                <option value="50">50점</option>
+            `;
+        }
         
         peerCard.innerHTML = `
             <div class="peer-name-with-image">
@@ -187,12 +220,7 @@ function displayEvaluationForm(peers) {
                     id="score_${peer.id}" 
                     name="score_${peer.id}"
                 >
-                    <option value="">선택하지 않음</option>
-                    <option value="10">10점</option>
-                    <option value="20">20점</option>
-                    <option value="30">30점</option>
-                    <option value="40">40점</option>
-                    <option value="50">50점</option>
+                    ${scoreOptions}
                 </select>
                 <div class="score-display" id="scoreDisplay_${peer.id}"></div>
             </div>
@@ -232,11 +260,17 @@ async function saveEvaluations() {
 
         // 평가내용과 가점이 모두 입력된 경우만 추가
         if (criteria && score) {
+            const scoreValue = parseFloat(score);
+            // 음수 점수의 경우 max_score를 절댓값으로 설정하여 제약 조건 만족
+            // 예: -10점이면 max_score는 10, -50점이면 max_score는 50
+            // 양수 점수의 경우 max_score는 50
+            const maxScore = scoreValue < 0 ? Math.abs(scoreValue) : 50;
+            
             evaluations.push({
                 peer_id: peer.id,
                 criteria: criteria,
-                score: parseFloat(score),
-                max_score: 50 // 최대 점수는 50점
+                score: scoreValue,
+                max_score: maxScore
             });
         }
     });
@@ -272,13 +306,31 @@ async function saveEvaluations() {
         const evaluationId = evaluationData.id;
 
         // 2. 평가 점수들(evaluation_scores) 생성
-        const evaluationScores = evaluations.map(eval => ({
-            evaluation_id: evaluationId,
-            peer_id: eval.peer_id,
-            criteria: eval.criteria,
-            max_score: eval.max_score,
-            score: eval.score
-        }));
+        // 음수 점수의 경우 데이터베이스 제약 조건을 만족하도록 처리
+        const evaluationScores = evaluations.map(eval => {
+            let score = eval.score;
+            let maxScore = eval.max_score;
+            let criteria = eval.criteria;
+            
+            // 음수 점수인 경우: score를 양수로 변환하고 criteria에 원래 음수 점수 정보 추가
+            // 데이터베이스 제약 조건 (score >= 0)을 만족시키기 위해
+            if (score < 0) {
+                // 원래 음수 점수 정보를 criteria에 추가
+                const originalScore = score;
+                criteria = `[자기평가: ${originalScore}점] ${criteria}`;
+                // score를 양수로 변환하여 저장
+                score = Math.abs(score);
+                maxScore = score; // 음수였던 경우 max_score를 score와 동일하게
+            }
+            
+            return {
+                evaluation_id: evaluationId,
+                peer_id: eval.peer_id,
+                criteria: criteria,
+                max_score: maxScore,
+                score: score
+            };
+        });
 
         const { error: scoresError } = await supabase
             .from('evaluation_scores')

@@ -134,18 +134,31 @@ function displayResults(evaluations) {
                 </div>
             </div>
             <div class="scores-list">
-                ${evaluation.scores.map(score => `
+                ${evaluation.scores.map(score => {
+                    // criteria에서 자기평가 음수 점수 정보 추출
+                    let displayScore = parseFloat(score.score || 0);
+                    let displayCriteria = score.criteria || '-';
+                    const selfEvalMatch = displayCriteria.match(/\[자기평가:\s*(-?\d+)점\]/);
+                    if (selfEvalMatch) {
+                        // 자기평가 음수 점수가 있는 경우 원래 음수 점수 표시
+                        displayScore = parseFloat(selfEvalMatch[1]);
+                        // criteria에서 자기평가 정보 제거하여 표시
+                        displayCriteria = displayCriteria.replace(/\[자기평가:\s*-?\d+점\]\s*/, '').trim();
+                    }
+                    
+                    return `
                     <div class="score-item">
                         <div class="peer-info">
                             <div class="peer-name">${score.peers?.name || '알 수 없음'}</div>
-                            <div class="criteria">${score.criteria || '-'}</div>
+                            <div class="criteria">${displayCriteria || '-'}</div>
                         </div>
                         <div class="score-info">
-                            <div class="score-value">${score.score}점</div>
+                            <div class="score-value">${displayScore}점</div>
                             <div class="score-max">/ ${score.max_score}점</div>
                         </div>
                     </div>
-                `).join('')}
+                `;
+                }).join('')}
             </div>
         `;
 
@@ -170,7 +183,17 @@ function calculateSummary(evaluations) {
                     averageScore: 0
                 };
             }
-            summary[peerName].totalScore += parseFloat(score.score || 0);
+            
+            // criteria에서 자기평가 음수 점수 정보 추출
+            let actualScore = parseFloat(score.score || 0);
+            const criteria = score.criteria || '';
+            const selfEvalMatch = criteria.match(/\[자기평가:\s*(-?\d+)점\]/);
+            if (selfEvalMatch) {
+                // 자기평가 음수 점수가 있는 경우 원래 음수 점수 사용
+                actualScore = parseFloat(selfEvalMatch[1]);
+            }
+            
+            summary[peerName].totalScore += actualScore;
             summary[peerName].count += 1;
         });
     });
