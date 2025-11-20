@@ -376,6 +376,7 @@ async function saveEvaluations() {
 // 평가 이메일 발송 함수
 async function sendEvaluationEmails(evaluationId, evaluatorName, evaluations, peersData) {
     try {
+
         // 평가 대상자 정보와 평가 내용 매핑
         const peerEvaluations = evaluations.map(eval => {
             const peer = peersData.find(p => p.id === eval.peer_id);
@@ -393,6 +394,10 @@ async function sendEvaluationEmails(evaluationId, evaluatorName, evaluations, pe
             evaluatorName,
             peerCount: peerEvaluations.length
         });
+
+        // Edge Function URL 확인
+        const functionUrl = `${SUPABASE_URL}/functions/v1/send-evaluation-email`;
+        console.log('Edge Function URL:', functionUrl);
 
         // Supabase Edge Function 호출
         const { data, error } = await supabase.functions.invoke('send-evaluation-email', {
@@ -412,12 +417,58 @@ async function sendEvaluationEmails(evaluationId, evaluatorName, evaluations, pe
             });
             
             // Edge Function이 배포되지 않은 경우를 위한 안내
-            if (error.message && error.message.includes('Failed to send')) {
-                console.warn('⚠️ Edge Function이 배포되지 않았을 수 있습니다.');
-                console.warn('배포 방법: Supabase 대시보드에서 Edge Functions → Create a new function');
-                console.warn('함수 이름: send-evaluation-email');
+            if (error.message && (error.message.includes('Failed to send') || error.message.includes('Failed to fetch'))) {
+                console.error('');
+                console.error('❌ ============================================');
+                console.error('❌ Edge Function이 배포되지 않았습니다!');
+                console.error('❌ ============================================');
+                console.error('');
+                console.error('📋 배포 방법 (3분 소요):');
+                console.error('');
+                console.error('1️⃣  Supabase 대시보드 접속');
+                console.error('   → https://supabase.com/dashboard');
+                console.error('   → 프로젝트 선택: nqwjvrznwzmfytjlpfsk');
+                console.error('');
+                console.error('2️⃣  Edge Functions 메뉴로 이동');
+                console.error('   → 왼쪽 메뉴에서 "Edge Functions" 클릭');
+                console.error('');
+                console.error('3️⃣  새 함수 생성');
+                console.error('   → "Create a new function" 클릭');
+                console.error('   → 함수 이름: send-evaluation-email (정확히)');
+                console.error('');
+                console.error('4️⃣  코드 복사 및 붙여넣기');
+                console.error('   → supabase/functions/send-evaluation-email/index.ts 파일 열기');
+                console.error('   → 전체 내용 복사 (Ctrl+A, Ctrl+C)');
+                console.error('   → Supabase 대시보드 코드 에디터에 붙여넣기 (Ctrl+V)');
+                console.error('');
+                console.error('5️⃣  배포');
+                console.error('   → "Deploy" 또는 "Save" 버튼 클릭');
+                console.error('   → 배포 완료까지 대기');
+                console.error('');
+                console.error('6️⃣  환경 변수 설정 (선택사항)');
+                console.error('   → Settings → Edge Functions → Secrets');
+                console.error('   → NAVER_EMAIL: beeper9@naver.com');
+                console.error('   → NAVER_PASSWORD: kimjungbae99');
+                console.error('');
+                console.error('7️⃣  테스트');
+                console.error('   → 브라우저 새로고침 (Ctrl+F5)');
+                console.error('   → 평가 입력 및 저장');
+                console.error('');
+                console.error('🔍 배포 확인:');
+                console.error(`   → ${SUPABASE_URL}/functions/v1/send-evaluation-email`);
+                console.error('   → 브라우저에서 직접 열어보기');
+                console.error('   → 404 오류 = 배포 안됨, 401 오류 = 배포됨 ✅');
+                console.error('');
+                console.error('📄 자세한 가이드: DEPLOY_NOW.md 파일 참고');
+                console.error('');
+                
                 // 평가 저장은 성공했으므로 오류를 throw하지 않음
-                return { success: false, message: 'Edge Function이 배포되지 않았습니다. 이메일은 발송되지 않았습니다.' };
+                return { 
+                    success: false, 
+                    message: 'Edge Function이 배포되지 않았습니다. 이메일은 발송되지 않았습니다.',
+                    error: error.message,
+                    needsDeployment: true
+                };
             }
             
             throw error;

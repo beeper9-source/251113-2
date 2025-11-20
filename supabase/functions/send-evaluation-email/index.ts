@@ -3,23 +3,31 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { encodeBase64 } from "https://deno.land/std@0.168.0/encoding/base64.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
   'Access-Control-Max-Age': '86400',
 }
 
 serve(async (req) => {
-  // CORS preflight 요청 처리
+  // CORS preflight 요청 처리 (OPTIONS 메서드)
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { 
+    return new Response(null, { 
       headers: corsHeaders,
-      status: 200 
+      status: 204  // No Content (표준 CORS 응답)
     })
   }
+
+  // 인증 헤더 확인 (선택사항 - 필요시 활성화)
+  // const authHeader = req.headers.get('authorization')
+  // if (!authHeader) {
+  //   return new Response(
+  //     JSON.stringify({ error: 'Unauthorized' }),
+  //     { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+  //   )
+  // }
 
   try {
     // 요청 본문 파싱
@@ -62,9 +70,11 @@ serve(async (req) => {
 
       // 네이버 SMTP를 사용하여 이메일 발송
       const naverEmail = Deno.env.get('NAVER_EMAIL') || 'beeper9@naver.com'
-      const naverPassword = Deno.env.get('NAVER_PASSWORD') || 'kimjungbae99'
+      // 비밀번호 명시적으로 설정
+      const naverPassword = 'kimjungbae99'
       
       try {
+        console.log(`이메일 발송 시도: ${peer.email}`)
         const emailSent = await sendEmailViaNaverSMTP(
           naverEmail,
           naverPassword,
@@ -77,12 +87,17 @@ serve(async (req) => {
           emailResults.push({ peer: peer.name, email: peer.email, status: 'success' })
           console.log(`✓ 이메일 발송 성공: ${peer.email}`)
         } else {
-          emailResults.push({ peer: peer.name, email: peer.email, status: 'error', error: '이메일 발송 실패' })
+          emailResults.push({ peer: peer.name, email: peer.email, status: 'error', error: '이메일 발송 실패 (SMTP 오류)' })
           console.log(`✗ 이메일 발송 실패: ${peer.email}`)
         }
       } catch (emailError) {
-        emailResults.push({ peer: peer.name, email: peer.email, status: 'error', error: emailError.message })
-        console.error(`이메일 발송 오류 (${peer.email}):`, emailError)
+        const errorMessage = emailError?.message || '알 수 없는 오류'
+        emailResults.push({ peer: peer.name, email: peer.email, status: 'error', error: errorMessage })
+        console.error(`이메일 발송 오류 (${peer.email}):`, {
+          message: errorMessage,
+          stack: emailError?.stack,
+          name: emailError?.name
+        })
       }
     }
 
@@ -209,6 +224,7 @@ function generateEmailBody(
 }
 
 // 네이버 SMTP를 사용한 이메일 발송 함수
+// Python의 NaverMailSender 클래스를 참조하여 구현
 // Deno에서 직접 SMTP 프로토콜 구현
 async function sendEmailViaNaverSMTP(
   senderEmail: string,
@@ -218,11 +234,11 @@ async function sendEmailViaNaverSMTP(
   htmlBody: string
 ): Promise<boolean> {
   try {
-    // SMTP 서버 설정
+    // SMTP 서버 설정 (Python 코드와 동일)
     const smtpServer = "smtp.naver.com"
-    const smtpPort = 587
+    const smtpPort = 587  // TLS 포트 (Python 코드와 동일)
     
-    // 이메일 메시지 구성 (RFC 5322 형식)
+    // 이메일 메시지 구성 (Python MIMEMultipart 스타일)
     const message = createEmailMessage(
       senderEmail,
       receiverEmail,
@@ -231,20 +247,41 @@ async function sendEmailViaNaverSMTP(
     )
     
     // SMTP 연결
-    const conn = await Deno.connect({ hostname: smtpServer, port: smtpPort })
+    console.log(`SMTP 서버 연결 시도: ${smtpServer}:${smtpPort}`)
+    let conn: Deno.Conn
+    try {
+      conn = await Deno.connect({ hostname: smtpServer, port: smtpPort })
+      console.log('SMTP 서버 연결 성공')
+    } catch (connectError: any) {
+      throw new Error(`SMTP 서버 연결 실패: ${connectError?.message || '알 수 없는 오류'}`)
+    }
+    
     const encoder = new TextEncoder()
     const decoder = new TextDecoder()
     
     // SMTP 프로토콜 처리
     let response = await readSMTPResponse(conn, decoder)
-    if (!response.startsWith('220')) {
+    console.log('SMTP 초기 응답:', response)
+    if (!response || !response.startsWith('220')) {
       conn.close()
-      throw new Error(`SMTP 연결 실패: ${response}`)
+      throw new Error(`SMTP 연결 실패: ${response || '(응답 없음)'}`)
     }
     
-    // EHLO 명령
-    await writeSMTPCommand(conn, encoder, `EHLO ${smtpServer}`)
+    // EHLO 명령 (호스트명 사용)
+    const hostname = 'localhost' // SMTP EHLO에서 사용할 호스트명
+    await writeSMTPCommand(conn, encoder, `EHLO ${hostname}`)
+    
+    // 응답 읽기 전에 짧은 대기 (서버가 응답할 시간 제공)
+    await new Promise(resolve => setTimeout(resolve, 200))
+    
     response = await readSMTPResponse(conn, decoder)
+    console.log('EHLO 응답:', response)
+    
+    if (!response || response.trim() === '') {
+      conn.close()
+      throw new Error('EHLO 실패: 응답이 없습니다')
+    }
+    
     if (!response.startsWith('250')) {
       conn.close()
       throw new Error(`EHLO 실패: ${response}`)
@@ -266,8 +303,19 @@ async function sendEmailViaNaverSMTP(
     const tlsDecoder = new TextDecoder()
     
     // EHLO 재전송 (TLS 후)
-    await writeSMTPCommand(tlsConn, tlsEncoder, `EHLO ${smtpServer}`)
+    await writeSMTPCommand(tlsConn, tlsEncoder, `EHLO ${hostname}`)
+    
+    // 응답 읽기 전에 짧은 대기
+    await new Promise(resolve => setTimeout(resolve, 200))
+    
     response = await readSMTPResponse(tlsConn, tlsDecoder)
+    console.log('EHLO (TLS) 응답:', response)
+    
+    if (!response || response.trim() === '') {
+      tlsConn.close()
+      throw new Error('EHLO (TLS) 실패: 응답이 없습니다')
+    }
+    
     if (!response.startsWith('250')) {
       tlsConn.close()
       throw new Error(`EHLO (TLS) 실패: ${response}`)
@@ -283,21 +331,23 @@ async function sendEmailViaNaverSMTP(
     
     // 사용자명 전송 (base64 인코딩)
     const username = senderEmail.split('@')[0] // beeper9@naver.com -> beeper9
-    // Deno에서 base64 인코딩
-    const usernameBytes = new TextEncoder().encode(username)
-    const usernameB64 = encodeBase64(usernameBytes)
+    // Deno에서 base64 인코딩 (내장 함수 사용)
+    const usernameB64 = btoa(username)
+    console.log(`사용자명 인증 시도: ${username} (base64: ${usernameB64})`)
     await writeSMTPCommand(tlsConn, tlsEncoder, usernameB64)
     response = await readSMTPResponse(tlsConn, tlsDecoder)
+    console.log(`사용자명 인증 응답: ${response}`)
     if (!response.startsWith('334')) {
       tlsConn.close()
       throw new Error(`사용자명 인증 실패: ${response}`)
     }
     
     // 비밀번호 전송 (base64 인코딩)
-    const passwordBytes = new TextEncoder().encode(senderPassword)
-    const passwordB64 = encodeBase64(passwordBytes)
+    const passwordB64 = btoa(senderPassword)
+    console.log(`비밀번호 인증 시도: ${senderPassword.substring(0, 2)}*** (base64: ${passwordB64.substring(0, 10)}...)`)
     await writeSMTPCommand(tlsConn, tlsEncoder, passwordB64)
     response = await readSMTPResponse(tlsConn, tlsDecoder)
+    console.log(`비밀번호 인증 응답: ${response}`)
     if (!response.startsWith('235')) {
       tlsConn.close()
       throw new Error(`비밀번호 인증 실패: ${response}`)
@@ -327,23 +377,35 @@ async function sendEmailViaNaverSMTP(
       throw new Error(`DATA 실패: ${response}`)
     }
     
-    // 메시지 본문 전송
-    const messageBytes = tlsEncoder.encode(message)
-    await tlsConn.write(messageBytes)
-    await writeSMTPCommand(tlsConn, tlsEncoder, '')
+    // 메시지 본문 전송 (Python의 server.sendmail과 유사)
+    // 메시지를 줄 단위로 전송
+    const messageLines = message.split('\r\n')
+    for (const line of messageLines) {
+      await writeSMTPCommand(tlsConn, tlsEncoder, line)
+    }
+    
+    // 종료 마커 전송 (점 하나만, Python의 sendmail과 동일)
+    await writeSMTPCommand(tlsConn, tlsEncoder, '.')
     response = await readSMTPResponse(tlsConn, tlsDecoder)
     if (!response.startsWith('250')) {
       tlsConn.close()
       throw new Error(`메시지 전송 실패: ${response}`)
     }
     
-    // QUIT
+    // QUIT (Python의 with 문이 자동으로 처리하는 것과 유사)
     await writeSMTPCommand(tlsConn, tlsEncoder, 'QUIT')
+    response = await readSMTPResponse(tlsConn, tlsDecoder)
     tlsConn.close()
     
+    console.log(`✓ 메일 발송 성공: ${receiverEmail}`)
     return true
   } catch (error) {
-    console.error('SMTP 오류:', error)
+    console.error(`✗ 메일 발송 실패: ${error.message}`)
+    console.error('SMTP 오류 상세:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    })
     return false
   }
 }
@@ -354,41 +416,104 @@ async function writeSMTPCommand(conn: Deno.Conn | Deno.TlsConn, encoder: TextEnc
   await conn.write(data)
 }
 
-// SMTP 응답 읽기 헬퍼 함수
+// SMTP 응답 읽기 헬퍼 함수 (여러 줄 응답 처리)
 async function readSMTPResponse(conn: Deno.Conn | Deno.TlsConn, decoder: TextDecoder): Promise<string> {
+  let fullResponse = ''
   const buffer = new Uint8Array(4096)
-  const n = await conn.read(buffer)
-  if (n === null || n === 0) {
-    throw new Error('SMTP 응답 읽기 실패')
+  let timeoutCount = 0
+  const maxTimeout = 50 // 최대 5초 대기 (50 * 100ms)
+  let hasData = false
+  
+  while (timeoutCount < maxTimeout) {
+    const n = await conn.read(buffer)
+    
+    if (n === null || n === 0) {
+      // 데이터가 없으면 잠시 대기 후 다시 시도
+      await new Promise(resolve => setTimeout(resolve, 100))
+      timeoutCount++
+      
+      // 이미 응답이 있고 완료 조건을 만족하면 종료
+      if (hasData && fullResponse.trim().length > 0) {
+        const lines = fullResponse.split('\r\n').filter(line => line.trim().length > 0)
+        if (lines.length > 0) {
+          const lastLine = lines[lines.length - 1].trim()
+          // SMTP 응답 코드가 있으면 완료 (250, 220, 334, 235, 354 등)
+          if (lastLine.match(/^\d{3}(\s|$)/)) {
+            break
+          }
+        }
+      }
+      continue
+    }
+    
+    hasData = true
+    const chunk = decoder.decode(buffer.subarray(0, n))
+    fullResponse += chunk
+    
+    // SMTP 응답은 마지막 줄이 숫자로 시작하고 공백이 있으면 완료
+    const lines = fullResponse.split('\r\n').filter(line => line.trim().length > 0)
+    if (lines.length > 0) {
+      const lastLine = lines[lines.length - 1].trim()
+      
+      // SMTP 응답 코드 확인 (250, 220, 334, 235, 354 등)
+      // 마지막 줄이 숫자 3자리로 시작하면 응답 완료
+      if (lastLine.match(/^\d{3}(\s|$)/)) {
+        break
+      }
+    }
+    
+    // 짧은 대기 후 다음 데이터 읽기
+    await new Promise(resolve => setTimeout(resolve, 50))
   }
-  return decoder.decode(buffer.subarray(0, n)).trim()
+  
+  const trimmedResponse = fullResponse.trim()
+  if (trimmedResponse === '') {
+    throw new Error('SMTP 응답 읽기 타임아웃: 응답이 없습니다')
+  }
+  
+  return trimmedResponse
 }
 
-// 이메일 메시지 생성 함수 (RFC 5322 형식)
+// 이메일 메시지 생성 함수 (RFC 5322 형식, Python MIMEMultipart 스타일)
 function createEmailMessage(
   from: string,
   to: string,
   subject: string,
   htmlBody: string
 ): string {
-  // 제목 인코딩 (한글 지원) - Deno에서 안전한 base64 인코딩
-  const subjectBytes = new TextEncoder().encode(subject)
-  const encodedSubject = `=?UTF-8?B?${encodeBase64(subjectBytes)}?=`
+  // Base64 인코딩 헬퍼 함수 (Deno에서 안전하게 사용)
+  function toBase64(str: string): string {
+    const bytes = new TextEncoder().encode(str)
+    let binary = ''
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    return btoa(binary)
+  }
   
-  // HTML 본문 base64 인코딩
-  const htmlBytes = new TextEncoder().encode(htmlBody)
-  const encodedHtmlBody = encodeBase64(htmlBytes)
+  // 제목 인코딩 (한글 지원) - UTF-8 Base64 인코딩
+  const encodedSubject = `=?UTF-8?B?${toBase64(subject)}?=`
   
+  // MIME 경계 문자열 생성 (Python MIMEMultipart와 유사)
+  const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  
+  // HTML 본문을 base64로 인코딩
+  const encodedHtmlBody = toBase64(htmlBody)
+  
+  // MIMEMultipart 형식으로 메시지 구성 (Python의 MIMEMultipart('alternative')와 유사)
   return [
     `From: ${from}`,
     `To: ${to}`,
     `Subject: ${encodedSubject}`,
     `MIME-Version: 1.0`,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    ``,
+    `--${boundary}`,
     `Content-Type: text/html; charset=UTF-8`,
     `Content-Transfer-Encoding: base64`,
     ``,
     encodedHtmlBody,
-    `.`
+    `--${boundary}--`
   ].join('\r\n')
 }
 
