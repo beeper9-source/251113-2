@@ -48,7 +48,8 @@ async function loadResults() {
                         *,
                         peers (
                             id,
-                            name
+                            name,
+                            email
                         )
                     `)
                     .eq('evaluation_id', evaluation.id)
@@ -150,6 +151,7 @@ function displayResults(evaluations) {
                     <div class="score-item">
                         <div class="peer-info">
                             <div class="peer-name">${score.peers?.name || '알 수 없음'}</div>
+                            ${score.peers?.email ? `<div class="peer-email">${score.peers.email}</div>` : ''}
                             <div class="criteria">${displayCriteria || '-'}</div>
                         </div>
                         <div class="score-info">

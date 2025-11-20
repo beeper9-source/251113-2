@@ -204,7 +204,10 @@ function displayEvaluationForm(peers) {
         peerCard.innerHTML = `
             <div class="peer-name-with-image">
                 ${imageHtml}
-                <div class="peer-name">${peer.name}</div>
+                <div class="peer-info">
+                    <div class="peer-name">${peer.name}</div>
+                    ${peer.email ? `<div class="peer-email">${peer.email}</div>` : ''}
+                </div>
             </div>
             <div class="form-group">
                 <label for="criteria_${peer.id}">평가내용</label>
@@ -340,6 +343,17 @@ async function saveEvaluations() {
             throw scoresError;
         }
 
+        // 3. 평가 대상자들에게 이메일 발송
+        try {
+            const emailResult = await sendEvaluationEmails(evaluationId, evaluatorName, evaluations, peersData);
+            if (emailResult && emailResult.success === false) {
+                console.warn('이메일 발송 실패:', emailResult.message || emailResult.error);
+            }
+        } catch (emailError) {
+            // 이메일 발송 실패는 평가 저장을 막지 않음
+            console.error('이메일 발송 중 오류:', emailError);
+        }
+
         // 성공 표시
         loading.style.display = 'none';
         saveBtn.disabled = false;
@@ -356,6 +370,71 @@ async function saveEvaluations() {
         saveBtn.disabled = false;
         showError(`저장 중 오류 발생: ${err.message}`);
         console.error('Error saving evaluations:', err);
+    }
+}
+
+// 평가 이메일 발송 함수
+async function sendEvaluationEmails(evaluationId, evaluatorName, evaluations, peersData) {
+    try {
+        // 평가 대상자 정보와 평가 내용 매핑
+        const peerEvaluations = evaluations.map(eval => {
+            const peer = peersData.find(p => p.id === eval.peer_id);
+            return {
+                peer_id: eval.peer_id,
+                peer_name: peer?.name || '알 수 없음',
+                criteria: eval.criteria,
+                score: eval.score,
+                max_score: eval.max_score
+            };
+        });
+
+        console.log('이메일 발송 시도:', {
+            evaluationId,
+            evaluatorName,
+            peerCount: peerEvaluations.length
+        });
+
+        // Supabase Edge Function 호출
+        const { data, error } = await supabase.functions.invoke('send-evaluation-email', {
+            body: {
+                evaluationId: evaluationId,
+                evaluatorName: evaluatorName,
+                peerEvaluations: peerEvaluations
+            }
+        });
+
+        if (error) {
+            console.error('Edge Function 호출 오류 상세:', {
+                message: error.message,
+                name: error.name,
+                stack: error.stack,
+                context: error.context
+            });
+            
+            // Edge Function이 배포되지 않은 경우를 위한 안내
+            if (error.message && error.message.includes('Failed to send')) {
+                console.warn('⚠️ Edge Function이 배포되지 않았을 수 있습니다.');
+                console.warn('배포 방법: Supabase 대시보드에서 Edge Functions → Create a new function');
+                console.warn('함수 이름: send-evaluation-email');
+                // 평가 저장은 성공했으므로 오류를 throw하지 않음
+                return { success: false, message: 'Edge Function이 배포되지 않았습니다. 이메일은 발송되지 않았습니다.' };
+            }
+            
+            throw error;
+        }
+
+        console.log('이메일 발송 결과:', data);
+        return data;
+    } catch (err) {
+        console.error('이메일 발송 오류:', err);
+        
+        // 평가 저장은 성공했으므로 오류를 throw하지 않고 로그만 남김
+        // 이렇게 하면 이메일 발송 실패가 평가 저장을 방해하지 않음
+        console.warn('이메일 발송에 실패했지만 평가는 저장되었습니다.');
+        return { 
+            success: false, 
+            error: err.message || '이메일 발송 중 오류가 발생했습니다.' 
+        };
     }
 }
 

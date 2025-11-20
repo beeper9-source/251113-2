@@ -123,6 +123,7 @@ function displayPeers(peers) {
                     <span>${peer.name || '-'}</span>
                 </div>
             </td>
+            <td>${peer.email || '-'}</td>
         `;
         peersTableBody.appendChild(row);
     });

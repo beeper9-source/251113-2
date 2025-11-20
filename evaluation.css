@@ -243,10 +243,22 @@ h2 {
     box-shadow: 0 2px 6px rgba(102, 126, 234, 0.2);
 }
 
+.peer-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
 .peer-name {
     font-size: 1.3em;
     font-weight: 700;
     color: #667eea;
+}
+
+.peer-email {
+    font-size: 0.9em;
+    color: #6c757d;
+    font-weight: 400;
 }
 
 .form-group {

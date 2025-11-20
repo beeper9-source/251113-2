@@ -212,6 +212,13 @@ h1 {
     margin-bottom: 5px;
 }
 
+.peer-email {
+    font-size: 0.85em;
+    color: #6c757d;
+    font-weight: 400;
+    margin-bottom: 5px;
+}
+
 .criteria {
     color: #6c757d;
     font-size: 0.95em;
