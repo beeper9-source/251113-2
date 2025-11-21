@@ -625,27 +625,30 @@ function showTrendChart(peerNames) {
         if (!allTrendData[peerName]) return;
         
         const trendData = allTrendData[peerName];
-        const dataMap = {};
+        const cumulativeDataMap = {};
+        const dailyDataMap = {};
         trendData.forEach(item => {
-            dataMap[item.date] = item.cumulativeScore;
+            cumulativeDataMap[item.date] = item.cumulativeScore;
+            dailyDataMap[item.date] = item.dailyScore;
         });
         
         const cumulativeScores = sortedDates.map(date => {
             // 해당 날짜의 누계 점수 찾기 (없으면 이전 값 사용)
-            if (dataMap[date] !== undefined) {
-                return dataMap[date];
+            if (cumulativeDataMap[date] !== undefined) {
+                return cumulativeDataMap[date];
             }
             // 이전 날짜의 마지막 값 찾기
             const trendDates = trendData.map(t => t.date).sort();
             const lastDateBefore = trendDates.filter(d => d <= date).pop();
             if (lastDateBefore) {
-                return dataMap[lastDateBefore] || null;
+                return cumulativeDataMap[lastDateBefore] || null;
             }
             return null;
         });
         
         const color = colorPalette[index % colorPalette.length];
         
+        // 누계 점수 데이터셋
         datasets.push({
             label: `${peerName} (누계)`,
             data: cumulativeScores,
@@ -661,6 +664,36 @@ function showTrendChart(peerNames) {
             pointBorderWidth: 2,
             spanGaps: true // null 값 건너뛰기
         });
+        
+        // 개별 추이일 때 일일 점수도 추가
+        if (peerNames.length === 1) {
+            const dailyScores = sortedDates.map(date => {
+                if (dailyDataMap[date] !== undefined) {
+                    return dailyDataMap[date];
+                }
+                return null;
+            });
+            
+            // 일일 점수용 색상 (보라색 계열)
+            const dailyColor = { border: '#764ba2', fill: 'rgba(118, 75, 162, 0.1)' };
+            
+            datasets.push({
+                label: `${peerName} (일일)`,
+                data: dailyScores,
+                borderColor: dailyColor.border,
+                backgroundColor: dailyColor.fill,
+                borderWidth: 2,
+                fill: false,
+                tension: 0.4,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointBackgroundColor: dailyColor.border,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                borderDash: [5, 5], // 점선
+                spanGaps: true
+            });
+        }
     });
     
     // 기존 차트가 있으면 제거
@@ -704,7 +737,24 @@ function showTrendChart(peerNames) {
                         size: 13
                     },
                     mode: 'index',
-                    intersect: false
+                    intersect: false,
+                    callbacks: {
+                        afterLabel: function(context) {
+                            // 개별 추이일 때 일일 점수에 평가 횟수 표시
+                            if (peerNames.length === 1 && context.datasetIndex === 1) {
+                                const dateIndex = context.dataIndex;
+                                const date = sortedDates[dateIndex];
+                                const trendData = allTrendData[peerNames[0]];
+                                if (trendData) {
+                                    const item = trendData.find(t => t.date === date);
+                                    if (item) {
+                                        return `평가 횟수: ${item.count}회`;
+                                    }
+                                }
+                            }
+                            return '';
+                        }
+                    }
                 }
             },
             scales: {
