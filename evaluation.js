@@ -666,13 +666,46 @@ evaluatorNameInput.addEventListener('change', async function() {
         // 오늘 사용한 점수 조회
         await loadTodayUsedScore(evaluatorName);
         
-        // 평가 폼이 이미 표시되어 있으면 총점 업데이트
-        if (evaluationForm.style.display === 'block') {
+        // 평가 폼이 이미 표시되어 있으면 평가 폼을 새로 렌더링 (자기평가 옵션 업데이트)
+        if (evaluationForm.style.display === 'block' && peersData.length > 0) {
+            // 기존 입력값 저장 (선택사항 - 사용자가 입력한 내용 유지하려면)
+            const savedInputs = {};
+            peersData.forEach(peer => {
+                const criteriaInput = document.getElementById(`criteria_${peer.id}`);
+                const scoreSelect = document.getElementById(`score_${peer.id}`);
+                if (criteriaInput && scoreSelect) {
+                    savedInputs[peer.id] = {
+                        criteria: criteriaInput.value,
+                        score: scoreSelect.value
+                    };
+                }
+            });
+            
+            // 평가 폼 다시 렌더링
+            displayEvaluationForm(peersData);
+            
+            // 저장된 입력값 복원
+            peersData.forEach(peer => {
+                if (savedInputs[peer.id]) {
+                    const criteriaInput = document.getElementById(`criteria_${peer.id}`);
+                    const scoreSelect = document.getElementById(`score_${peer.id}`);
+                    if (criteriaInput && scoreSelect) {
+                        criteriaInput.value = savedInputs[peer.id].criteria;
+                        scoreSelect.value = savedInputs[peer.id].score;
+                        
+                        // 점수 표시 업데이트
+                        const scoreDisplay = document.getElementById(`scoreDisplay_${peer.id}`);
+                        if (scoreDisplay && scoreSelect.value) {
+                            scoreDisplay.textContent = `선택된 점수: ${scoreSelect.value}점`;
+                        }
+                    }
+                }
+            });
+            
+            // 총점 업데이트
             updateTotalScore();
-        }
-        
-        // 평가 폼이 표시되지 않았으면 peers 목록 불러오기
-        if (evaluationForm.style.display === 'none' || !evaluationForm.style.display) {
+        } else if (evaluationForm.style.display === 'none' || !evaluationForm.style.display) {
+            // 평가 폼이 표시되지 않았으면 peers 목록 불러오기
             loadPeers();
         }
     } else {
