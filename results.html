@@ -37,6 +37,17 @@
         </div>
 
         <div id="summaryResults" class="summary-results" style="display: none;">
+            <div id="compareControls" class="compare-controls" style="display: none;">
+                <button id="compareBtn" class="btn-compare">
+                    📊 선택한 사람들의 추이 비교
+                </button>
+                <button id="selectAllBtn" class="btn-select-all">
+                    전체 선택
+                </button>
+                <button id="deselectAllBtn" class="btn-deselect-all">
+                    전체 해제
+                </button>
+            </div>
             <div id="summaryList" class="summary-list">
                 <!-- 이름별 누계점수가 여기에 동적으로 추가됩니다 -->
             </div>
@@ -54,7 +65,19 @@
         <div class="modal-caption" id="modalCaption"></div>
     </div>
 
+    <!-- 차트 모달 -->
+    <div id="chartModal" class="chart-modal">
+        <div class="chart-modal-content">
+            <span class="chart-modal-close">&times;</span>
+            <h2 id="chartModalTitle">점수 추이</h2>
+            <div class="chart-container">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="results.js"></script>
 </body>
 </html>

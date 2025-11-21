@@ -30,8 +30,21 @@ serve(async (req) => {
   // }
 
   try {
+    console.log('Edge Function 호출됨:', {
+      method: req.method,
+      url: req.url,
+      headers: Object.fromEntries(req.headers.entries())
+    })
+    
     // 요청 본문 파싱
-    const { evaluationId, evaluatorName, peerEvaluations } = await req.json()
+    const requestBody = await req.json()
+    console.log('요청 본문:', {
+      evaluationId: requestBody.evaluationId,
+      evaluatorName: requestBody.evaluatorName,
+      peerEvaluationsCount: requestBody.peerEvaluations?.length || 0
+    })
+    
+    const { evaluationId, evaluatorName, peerEvaluations } = requestBody
 
     // Supabase 클라이언트 생성
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
@@ -69,9 +82,13 @@ serve(async (req) => {
       )
 
       // 네이버 SMTP를 사용하여 이메일 발송
-      const naverEmail = Deno.env.get('NAVER_EMAIL') || 'beeper9@naver.com'
+      const naverAccount = Deno.env.get('NAVER_EMAIL') || 'beeper9'
+      // 전체 이메일 주소 구성 (SMTP에서 필요)
+      const naverEmail = naverAccount.includes('@') ? naverAccount : `${naverAccount}@naver.com`
       // 비밀번호 명시적으로 설정
-      const naverPassword = 'kimjungbae99'
+      const naverPassword = 'QCJ4HC81QPW7'
+      
+      console.log(`네이버 SMTP 설정: 계정=${naverAccount}, 이메일=${naverEmail}, 비밀번호 길이=${naverPassword.length}`)
       
       try {
         console.log(`이메일 발송 시도: ${peer.email}`)
@@ -113,15 +130,27 @@ serve(async (req) => {
       }
     )
 
-  } catch (error) {
+  } catch (error: any) {
+    // 상세 오류 로깅
+    console.error('Edge Function 오류 발생:', {
+      message: error?.message || '알 수 없는 오류',
+      stack: error?.stack,
+      name: error?.name,
+      cause: error?.cause
+    })
+    
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: error?.message || '알 수 없는 오류',
+        details: process.env.DENO_ENV === 'development' ? {
+          stack: error?.stack,
+          name: error?.name
+        } : undefined
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400 
+        status: 500 
       }
     )
   }
@@ -194,6 +223,20 @@ function generateEmailBody(
           color: #6c757d;
           font-size: 0.9em;
         }
+        .link-button {
+          display: inline-block;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 12px 30px;
+          text-decoration: none;
+          border-radius: 6px;
+          margin: 20px 0;
+          font-weight: bold;
+          transition: transform 0.2s;
+        }
+        .link-button:hover {
+          transform: translateY(-2px);
+        }
       </style>
     </head>
     <body>
@@ -213,6 +256,12 @@ function generateEmailBody(
         </div>
         
         <p>더 자세한 평가 결과는 시스템에서 확인하실 수 있습니다.</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="https://beeper9-source.github.io/251113-2/" class="link-button" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            평가 시스템 바로 가기
+          </a>
+        </div>
         
         <div class="footer">
           <p>이 이메일은 자동으로 발송되었습니다.</p>
@@ -234,9 +283,9 @@ async function sendEmailViaNaverSMTP(
   htmlBody: string
 ): Promise<boolean> {
   try {
-    // SMTP 서버 설정 (Python 코드와 동일)
+    // SMTP 서버 설정
     const smtpServer = "smtp.naver.com"
-    const smtpPort = 587  // TLS 포트 (Python 코드와 동일)
+    const smtpPort = 465  // SSL/TLS 포트 (465는 직접 TLS 연결)
     
     // 이메일 메시지 구성 (Python MIMEMultipart 스타일)
     const message = createEmailMessage(
@@ -246,79 +295,46 @@ async function sendEmailViaNaverSMTP(
       htmlBody
     )
     
-    // SMTP 연결
-    console.log(`SMTP 서버 연결 시도: ${smtpServer}:${smtpPort}`)
-    let conn: Deno.Conn
+    // SMTP 연결 (465 포트는 직접 TLS 연결)
+    console.log(`SMTP 서버 연결 시도: ${smtpServer}:${smtpPort} (SSL/TLS)`)
+    let tlsConn: Deno.TlsConn
     try {
-      conn = await Deno.connect({ hostname: smtpServer, port: smtpPort })
-      console.log('SMTP 서버 연결 성공')
+      // 465 포트는 Deno.connectTls를 사용하여 직접 TLS 연결
+      tlsConn = await Deno.connectTls({ hostname: smtpServer, port: smtpPort })
+      console.log('SMTP 서버 TLS 연결 성공')
     } catch (connectError: any) {
       throw new Error(`SMTP 서버 연결 실패: ${connectError?.message || '알 수 없는 오류'}`)
     }
     
-    const encoder = new TextEncoder()
-    const decoder = new TextDecoder()
+    const tlsEncoder = new TextEncoder()
+    const tlsDecoder = new TextDecoder()
     
-    // SMTP 프로토콜 처리
-    let response = await readSMTPResponse(conn, decoder)
+    // SMTP 프로토콜 처리 (TLS 연결 후)
+    let response = await readSMTPResponse(tlsConn, tlsDecoder)
     console.log('SMTP 초기 응답:', response)
     if (!response || !response.startsWith('220')) {
-      conn.close()
+      tlsConn.close()
       throw new Error(`SMTP 연결 실패: ${response || '(응답 없음)'}`)
     }
     
     // EHLO 명령 (호스트명 사용)
     const hostname = 'localhost' // SMTP EHLO에서 사용할 호스트명
-    await writeSMTPCommand(conn, encoder, `EHLO ${hostname}`)
+    await writeSMTPCommand(tlsConn, tlsEncoder, `EHLO ${hostname}`)
     
     // 응답 읽기 전에 짧은 대기 (서버가 응답할 시간 제공)
     await new Promise(resolve => setTimeout(resolve, 200))
     
-    response = await readSMTPResponse(conn, decoder)
+    response = await readSMTPResponse(tlsConn, tlsDecoder)
     console.log('EHLO 응답:', response)
     
     if (!response || response.trim() === '') {
-      conn.close()
+      tlsConn.close()
       throw new Error('EHLO 실패: 응답이 없습니다')
     }
     
     if (!response.startsWith('250')) {
-      conn.close()
+      tlsConn.close()
       throw new Error(`EHLO 실패: ${response}`)
-    }
-    
-    // STARTTLS
-    await writeSMTPCommand(conn, encoder, 'STARTTLS')
-    response = await readSMTPResponse(conn, decoder)
-    if (!response.startsWith('220')) {
-      conn.close()
-      throw new Error(`STARTTLS 실패: ${response}`)
-    }
-    
-    // TLS 연결 업그레이드
-    // Deno의 startTls 사용 (Deno 1.0+)
-    const tlsConn = await Deno.startTls(conn, { hostname: smtpServer })
-    
-    const tlsEncoder = new TextEncoder()
-    const tlsDecoder = new TextDecoder()
-    
-    // EHLO 재전송 (TLS 후)
-    await writeSMTPCommand(tlsConn, tlsEncoder, `EHLO ${hostname}`)
-    
-    // 응답 읽기 전에 짧은 대기
-    await new Promise(resolve => setTimeout(resolve, 200))
-    
-    response = await readSMTPResponse(tlsConn, tlsDecoder)
-    console.log('EHLO (TLS) 응답:', response)
-    
-    if (!response || response.trim() === '') {
-      tlsConn.close()
-      throw new Error('EHLO (TLS) 실패: 응답이 없습니다')
-    }
-    
-    if (!response.startsWith('250')) {
-      tlsConn.close()
-      throw new Error(`EHLO (TLS) 실패: ${response}`)
     }
     
     // AUTH LOGIN
@@ -330,17 +346,30 @@ async function sendEmailViaNaverSMTP(
     }
     
     // 사용자명 전송 (base64 인코딩)
+    // 네이버 SMTP는 아이디만 사용 (일부 경우 전체 이메일 주소도 가능하지만, 먼저 아이디만 시도)
     const username = senderEmail.split('@')[0] // beeper9@naver.com -> beeper9
     // Deno에서 base64 인코딩 (내장 함수 사용)
     const usernameB64 = btoa(username)
+    console.log(`=== SMTP 인증 시작 ===`)
     console.log(`사용자명 인증 시도: ${username} (base64: ${usernameB64})`)
+    console.log(`전체 이메일 주소: ${senderEmail}`)
+    console.log(`비밀번호 길이: ${senderPassword.length}`)
+    console.log(`비밀번호 첫 2자: ${senderPassword.substring(0, 2)}***`)
+    console.log(`⚠️ 네이버 SMTP 인증 실패 시 확인사항:`)
+    console.log(`   1. 네이버 메일 → 환경설정 → POP3/IMAP 설정 → "외부 메일 프로그램 사용" 활성화`)
+    console.log(`   2. 네이버 계정 비밀번호가 정확한지 확인`)
+    console.log(`   3. 2단계 인증 활성화 시 앱 비밀번호 사용 필요`)
     await writeSMTPCommand(tlsConn, tlsEncoder, usernameB64)
     response = await readSMTPResponse(tlsConn, tlsDecoder)
     console.log(`사용자명 인증 응답: ${response}`)
     if (!response.startsWith('334')) {
       tlsConn.close()
-      throw new Error(`사용자명 인증 실패: ${response}`)
+      const errorMsg = `사용자명 인증 실패: ${response}`
+      console.error(`❌ ${errorMsg}`)
+      console.error(`사용자명: ${username}, 전체 이메일: ${senderEmail}`)
+      throw new Error(errorMsg)
     }
+    console.log(`✓ 사용자명 인증 성공`)
     
     // 비밀번호 전송 (base64 인코딩)
     const passwordB64 = btoa(senderPassword)
@@ -350,8 +379,17 @@ async function sendEmailViaNaverSMTP(
     console.log(`비밀번호 인증 응답: ${response}`)
     if (!response.startsWith('235')) {
       tlsConn.close()
-      throw new Error(`비밀번호 인증 실패: ${response}`)
+      const errorMsg = `비밀번호 인증 실패: ${response}`
+      console.error(`❌ ${errorMsg}`)
+      console.error(`사용자명: ${username}, 전체 이메일: ${senderEmail}`)
+      console.error(`비밀번호 길이: ${senderPassword.length}, 첫 2자: ${senderPassword.substring(0, 2)}`)
+      console.error(`🔴 네이버 SMTP 인증 실패 원인 가능성:`)
+      console.error(`   1. 네이버 메일 외부 프로그램 사용 설정이 꺼져 있음`)
+      console.error(`   2. 비밀번호가 잘못됨 (현재: ${senderPassword.substring(0, 2)}***)`)
+      console.error(`   3. 2단계 인증 활성화되어 앱 비밀번호 필요`)
+      throw new Error(errorMsg)
     }
+    console.log(`✓ 비밀번호 인증 성공`)
     
     // MAIL FROM
     await writeSMTPCommand(tlsConn, tlsEncoder, `MAIL FROM:<${senderEmail}>`)
@@ -399,12 +437,16 @@ async function sendEmailViaNaverSMTP(
     
     console.log(`✓ 메일 발송 성공: ${receiverEmail}`)
     return true
-  } catch (error) {
-    console.error(`✗ 메일 발송 실패: ${error.message}`)
+  } catch (error: any) {
+    const errorMessage = error?.message || '알 수 없는 SMTP 오류'
+    console.error(`✗ 메일 발송 실패: ${errorMessage}`)
     console.error('SMTP 오류 상세:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
+      message: errorMessage,
+      stack: error?.stack,
+      name: error?.name,
+      cause: error?.cause,
+      senderEmail: senderEmail,
+      receiverEmail: receiverEmail
     })
     return false
   }

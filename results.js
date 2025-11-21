@@ -70,6 +70,9 @@ async function loadResults() {
         // 로딩 숨기기
         loading.style.display = 'none';
 
+        // 전체 평가 데이터 저장 (일별 추이 계산용)
+        allEvaluationsData = evaluationsWithScores;
+
         // 결과 표시
         displayResults(evaluationsWithScores);
 
@@ -170,6 +173,7 @@ function displayResults(evaluations) {
 
 // 이름별 누계점수 계산
 let summaryData = [];
+let allEvaluationsData = []; // 전체 평가 데이터 저장 (일별 추이 계산용)
 
 function calculateSummary(evaluations) {
     const summary = {};
@@ -236,6 +240,10 @@ function displaySummary() {
         summaryCard.innerHTML = `
             <div class="summary-header">
                 <div class="peer-info-with-image">
+                    <label class="peer-checkbox-label">
+                        <input type="checkbox" class="peer-checkbox" data-peer-name="${item.name}" value="${item.name}">
+                        <span class="checkbox-custom"></span>
+                    </label>
                     ${imagePath ? `<img src="${imagePath}" alt="${item.name}" class="peer-image" data-image-src="${imagePath}" data-peer-name="${item.name}">` : ''}
                     <div class="peer-name-large">${item.name}</div>
                 </div>
@@ -257,6 +265,9 @@ function displaySummary() {
                     </div>
                     <div class="bar-value">${item.totalScore}점</div>
                 </div>
+                <button class="btn-trend" data-peer-name="${item.name}">
+                    📈 개별 추이 보기
+                </button>
             </div>
         `;
         summaryList.appendChild(summaryCard);
@@ -271,7 +282,20 @@ function displaySummary() {
                 });
             }
         }
+        
+        // 추이 버튼 클릭 이벤트 추가
+        const trendBtn = summaryCard.querySelector('.btn-trend');
+        if (trendBtn) {
+            trendBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const peerName = this.getAttribute('data-peer-name');
+                showTrendChart([peerName]);
+            });
+        }
     });
+    
+    // 비교 컨트롤 표시
+    document.getElementById('compareControls').style.display = 'flex';
 }
 
 // 이름에 따른 이미지 경로 반환 함수
@@ -433,31 +457,327 @@ function closeImageModal() {
 
 // 모달 이벤트 리스너
 document.addEventListener('DOMContentLoaded', function() {
-    const modal = document.getElementById('imageModal');
-    const closeBtn = document.querySelector('.modal-close');
+    const imageModal = document.getElementById('imageModal');
+    const imageCloseBtn = document.querySelector('.modal-close');
     
-    // 닫기 버튼 클릭
-    if (closeBtn) {
-        closeBtn.addEventListener('click', closeImageModal);
+    // 이미지 모달 닫기 버튼 클릭
+    if (imageCloseBtn) {
+        imageCloseBtn.addEventListener('click', closeImageModal);
     }
     
-    // 모달 배경 클릭 시 닫기
-    modal.addEventListener('click', function(e) {
-        if (e.target === modal) {
+    // 이미지 모달 배경 클릭 시 닫기
+    imageModal.addEventListener('click', function(e) {
+        if (e.target === imageModal) {
             closeImageModal();
         }
     });
     
-    // ESC 키로 닫기
+    // 차트 모달 이벤트 리스너
+    const chartModal = document.getElementById('chartModal');
+    const chartCloseBtn = document.querySelector('.chart-modal-close');
+    
+    // 차트 모달 닫기 버튼 클릭
+    if (chartCloseBtn) {
+        chartCloseBtn.addEventListener('click', closeChartModal);
+    }
+    
+    // 차트 모달 배경 클릭 시 닫기
+    chartModal.addEventListener('click', function(e) {
+        if (e.target === chartModal) {
+            closeChartModal();
+        }
+    });
+    
+    // ESC 키로 모달 닫기
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && modal.style.display === 'flex') {
-            closeImageModal();
+        if (e.key === 'Escape') {
+            if (imageModal.style.display === 'flex') {
+                closeImageModal();
+            }
+            if (chartModal.style.display === 'flex') {
+                closeChartModal();
+            }
         }
     });
 });
 
+// 일별 누계 점수 계산 함수
+function calculateDailyTrend(peerName) {
+    // 날짜별로 그룹화
+    const dailyData = {};
+    
+    allEvaluationsData.forEach(evaluation => {
+        const evaluationDate = new Date(evaluation.created_at);
+        const dateKey = evaluationDate.toISOString().split('T')[0]; // YYYY-MM-DD 형식
+        
+        evaluation.scores.forEach(score => {
+            if (score.peers?.name === peerName) {
+                if (!dailyData[dateKey]) {
+                    dailyData[dateKey] = {
+                        date: dateKey,
+                        totalScore: 0,
+                        count: 0
+                    };
+                }
+                
+                // criteria에서 자기평가 음수 점수 정보 추출
+                let actualScore = parseFloat(score.score || 0);
+                const criteria = score.criteria || '';
+                const selfEvalMatch = criteria.match(/\[자기평가:\s*(-?\d+)점\]/);
+                if (selfEvalMatch) {
+                    actualScore = parseFloat(selfEvalMatch[1]);
+                }
+                
+                dailyData[dateKey].totalScore += actualScore;
+                dailyData[dateKey].count += 1;
+            }
+        });
+    });
+    
+    // 날짜순으로 정렬
+    const sortedDates = Object.keys(dailyData).sort();
+    
+    // 누계 점수 계산
+    let cumulativeScore = 0;
+    const trendData = sortedDates.map(dateKey => {
+        cumulativeScore += dailyData[dateKey].totalScore;
+        return {
+            date: dateKey,
+            dailyScore: dailyData[dateKey].totalScore,
+            cumulativeScore: cumulativeScore,
+            count: dailyData[dateKey].count
+        };
+    });
+    
+    return trendData;
+}
+
+// 색상 팔레트 (여러 사람 비교 시 사용)
+const colorPalette = [
+    { border: '#667eea', fill: 'rgba(102, 126, 234, 0.1)' },
+    { border: '#764ba2', fill: 'rgba(118, 75, 162, 0.1)' },
+    { border: '#f093fb', fill: 'rgba(240, 147, 251, 0.1)' },
+    { border: '#4facfe', fill: 'rgba(79, 172, 254, 0.1)' },
+    { border: '#00f2fe', fill: 'rgba(0, 242, 254, 0.1)' },
+    { border: '#43e97b', fill: 'rgba(67, 233, 123, 0.1)' },
+    { border: '#fa709a', fill: 'rgba(250, 112, 154, 0.1)' },
+    { border: '#fee140', fill: 'rgba(254, 225, 64, 0.1)' },
+    { border: '#30cfd0', fill: 'rgba(48, 207, 208, 0.1)' },
+    { border: '#330867', fill: 'rgba(51, 8, 103, 0.1)' }
+];
+
+// 추이 차트 표시 함수 (여러 사람 지원)
+let trendChartInstance = null;
+
+function showTrendChart(peerNames) {
+    if (!Array.isArray(peerNames)) {
+        peerNames = [peerNames];
+    }
+    
+    if (peerNames.length === 0) {
+        alert('비교할 사람을 선택해주세요.');
+        return;
+    }
+    
+    // 모든 날짜 수집
+    const allDates = new Set();
+    const allTrendData = {};
+    
+    peerNames.forEach(peerName => {
+        const trendData = calculateDailyTrend(peerName);
+        if (trendData.length === 0) {
+            return;
+        }
+        allTrendData[peerName] = trendData;
+        trendData.forEach(item => allDates.add(item.date));
+    });
+    
+    if (Object.keys(allTrendData).length === 0) {
+        alert('선택한 사람들의 평가 데이터가 없습니다.');
+        return;
+    }
+    
+    // 날짜 정렬
+    const sortedDates = Array.from(allDates).sort();
+    
+    // 모달 열기
+    const chartModal = document.getElementById('chartModal');
+    const chartModalTitle = document.getElementById('chartModalTitle');
+    
+    if (peerNames.length === 1) {
+        chartModalTitle.textContent = `${peerNames[0]}님의 일별 누계 점수 추이`;
+    } else {
+        chartModalTitle.textContent = `${peerNames.length}명의 일별 누계 점수 추이 비교`;
+    }
+    
+    chartModal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    
+    // 차트 데이터 준비
+    const labels = sortedDates.map(date => {
+        const d = new Date(date);
+        return `${d.getMonth() + 1}/${d.getDate()}`;
+    });
+    
+    const datasets = [];
+    
+    peerNames.forEach((peerName, index) => {
+        if (!allTrendData[peerName]) return;
+        
+        const trendData = allTrendData[peerName];
+        const dataMap = {};
+        trendData.forEach(item => {
+            dataMap[item.date] = item.cumulativeScore;
+        });
+        
+        const cumulativeScores = sortedDates.map(date => {
+            // 해당 날짜의 누계 점수 찾기 (없으면 이전 값 사용)
+            if (dataMap[date] !== undefined) {
+                return dataMap[date];
+            }
+            // 이전 날짜의 마지막 값 찾기
+            const trendDates = trendData.map(t => t.date).sort();
+            const lastDateBefore = trendDates.filter(d => d <= date).pop();
+            if (lastDateBefore) {
+                return dataMap[lastDateBefore] || null;
+            }
+            return null;
+        });
+        
+        const color = colorPalette[index % colorPalette.length];
+        
+        datasets.push({
+            label: `${peerName} (누계)`,
+            data: cumulativeScores,
+            borderColor: color.border,
+            backgroundColor: color.fill,
+            borderWidth: 3,
+            fill: peerNames.length === 1, // 1명일 때만 채우기
+            tension: 0.4,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: color.border,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            spanGaps: true // null 값 건너뛰기
+        });
+    });
+    
+    // 기존 차트가 있으면 제거
+    const chartCanvas = document.getElementById('trendChart');
+    if (trendChartInstance) {
+        trendChartInstance.destroy();
+    }
+    
+    // 새 차트 생성
+    const ctx = chartCanvas.getContext('2d');
+    trendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    titleFont: {
+                        size: 14,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 13
+                    },
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        font: {
+                            size: 12
+                        },
+                        callback: function(value) {
+                            return value + '점';
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                },
+                x: {
+                    ticks: {
+                        font: {
+                            size: 12
+                        }
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+}
+
+// 차트 모달 닫기
+function closeChartModal() {
+    const chartModal = document.getElementById('chartModal');
+    chartModal.style.display = 'none';
+    document.body.style.overflow = 'auto';
+    if (trendChartInstance) {
+        trendChartInstance.destroy();
+        trendChartInstance = null;
+    }
+}
+
 // 페이지 로드 시 자동으로 데이터 불러오기
 window.addEventListener('DOMContentLoaded', loadResults);
+
+// 선택된 사람들의 추이 비교
+function compareSelectedPeers() {
+    const checkboxes = document.querySelectorAll('.peer-checkbox:checked');
+    const selectedPeers = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (selectedPeers.length === 0) {
+        alert('비교할 사람을 최소 1명 이상 선택해주세요.');
+        return;
+    }
+    
+    showTrendChart(selectedPeers);
+}
+
+// 전체 선택/해제
+function selectAllPeers() {
+    const checkboxes = document.querySelectorAll('.peer-checkbox');
+    checkboxes.forEach(cb => cb.checked = true);
+}
+
+function deselectAllPeers() {
+    const checkboxes = document.querySelectorAll('.peer-checkbox');
+    checkboxes.forEach(cb => cb.checked = false);
+}
 
 // 탭 버튼 및 복사 버튼 이벤트 리스너 (이벤트 위임 사용)
 document.addEventListener('click', function(e) {
@@ -468,6 +788,12 @@ document.addEventListener('click', function(e) {
         }
     } else if (e.target.id === 'copyBtn' || e.target.closest('#copyBtn')) {
         copyResults();
+    } else if (e.target.id === 'compareBtn' || e.target.closest('#compareBtn')) {
+        compareSelectedPeers();
+    } else if (e.target.id === 'selectAllBtn' || e.target.closest('#selectAllBtn')) {
+        selectAllPeers();
+    } else if (e.target.id === 'deselectAllBtn' || e.target.closest('#deselectAllBtn')) {
+        deselectAllPeers();
     }
 });
 

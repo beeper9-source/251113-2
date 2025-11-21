@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peer 추가 - 이균홍</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        .info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            text-align: center;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Peer 추가: 이균홍</h1>
+        <div class="info">
+            <strong>이름:</strong> 이균홍<br>
+            <strong>이메일:</strong> kkunong.lee@samsung.com
+        </div>
+        <button id="addBtn" onclick="addPeer()">Peer 추가하기</button>
+        <div id="result" class="result"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Supabase 설정
+        const SUPABASE_URL = 'https://nqwjvrznwzmfytjlpfsk.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5xd2p2cnpud3ptZnl0amxwZnNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzNzA4NTEsImV4cCI6MjA3Mzk0Njg1MX0.R3Y2Xb9PmLr3sCLSdJov4Mgk1eAmhaCIPXEKq6u8NQI';
+
+        // Supabase 클라이언트 초기화
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function addPeer() {
+            const btn = document.getElementById('addBtn');
+            const resultDiv = document.getElementById('result');
+            
+            // 버튼 비활성화 및 로딩 표시
+            btn.disabled = true;
+            btn.textContent = '처리 중...';
+            resultDiv.style.display = 'none';
+            
+            try {
+                console.log('이균홍 peer 추가 중...');
+                
+                // 먼저 기존 데이터 확인
+                const { data: existingData, error: checkError } = await supabase
+                    .from('peers')
+                    .select('*')
+                    .eq('name', '이균홍');
+                
+                if (checkError) {
+                    throw checkError;
+                }
+                
+                if (existingData && existingData.length > 0) {
+                    // 이미 존재하는 경우 업데이트
+                    console.log('이미 존재하는 peer입니다. 이메일 업데이트 중...');
+                    const { data: updateData, error: updateError } = await supabase
+                        .from('peers')
+                        .update({ email: 'kkunong.lee@samsung.com' })
+                        .eq('name', '이균홍')
+                        .select();
+                    
+                    if (updateError) {
+                        throw updateError;
+                    }
+                    
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = '✅ <strong>성공!</strong><br>이균홍 peer의 이메일이 업데이트되었습니다.';
+                    resultDiv.style.display = 'block';
+                    console.log('✓ 이균홍 peer 이메일 업데이트 완료:', updateData);
+                } else {
+                    // 새로 추가
+                    const { data: insertData, error: insertError } = await supabase
+                        .from('peers')
+                        .insert([
+                            { 
+                                name: '이균홍', 
+                                email: 'kkunong.lee@samsung.com' 
+                            }
+                        ])
+                        .select();
+                    
+                    if (insertError) {
+                        throw insertError;
+                    }
+                    
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = '✅ <strong>성공!</strong><br>이균홍 peer가 성공적으로 추가되었습니다.';
+                    resultDiv.style.display = 'block';
+                    console.log('✓ 이균홍 peer 추가 완료:', insertData);
+                }
+            } catch (err) {
+                console.error('오류 발생:', err);
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ <strong>오류 발생:</strong><br>${err.message}`;
+                resultDiv.style.display = 'block';
+            } finally {
+                // 버튼 다시 활성화
+                btn.disabled = false;
+                btn.textContent = 'Peer 추가하기';
+            }
+        }
+    </script>
+</body>
+</html>
+
