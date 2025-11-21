@@ -17,6 +17,8 @@ const peersList = document.getElementById('peersList');
 // 전역 변수
 let peersData = [];
 let allPeersList = [];
+let todayUsedScore = 0; // 오늘 사용한 점수
+const MAX_DAILY_SCORE = 100; // 하루 최대 점수
 
 // 이름에 따른 이미지 경로 반환 함수
 function getImagePath(name) {
@@ -142,6 +144,9 @@ async function loadPeers() {
         // 데이터 저장
         peersData = data;
 
+        // 오늘 사용한 점수 조회
+        await loadTodayUsedScore(evaluatorName);
+        
         // 평가 폼 표시
         displayEvaluationForm(data);
         saveBtn.style.display = 'block';
@@ -230,7 +235,7 @@ function displayEvaluationForm(peers) {
         `;
         peersList.appendChild(peerCard);
 
-        // 점수 선택 시 표시 업데이트
+        // 점수 선택 시 표시 업데이트 및 총점 계산
         const scoreSelect = document.getElementById(`score_${peer.id}`);
         const scoreDisplay = document.getElementById(`scoreDisplay_${peer.id}`);
         
@@ -240,10 +245,123 @@ function displayEvaluationForm(peers) {
             } else {
                 scoreDisplay.textContent = '';
             }
+            // 총점 업데이트
+            updateTotalScore();
         });
     });
 
     evaluationForm.style.display = 'block';
+    updateTotalScore(); // 초기 총점 표시
+}
+
+// 오늘 사용한 점수 조회
+async function loadTodayUsedScore(evaluatorName) {
+    try {
+        // 오늘 날짜 범위 계산 (한국 시간 기준)
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const todayStart = `${year}-${month}-${day}T00:00:00.000Z`;
+        const todayEnd = `${year}-${month}-${day}T23:59:59.999Z`;
+        
+        // 오늘 날짜의 평가 조회
+        const { data: todayEvaluations, error: evalError } = await supabase
+            .from('evaluations')
+            .select(`
+                id,
+                evaluation_scores (
+                    score,
+                    criteria
+                )
+            `)
+            .eq('evaluator_name', evaluatorName)
+            .gte('created_at', todayStart)
+            .lte('created_at', todayEnd);
+        
+        if (evalError) {
+            console.error('오늘 사용한 점수 조회 오류:', evalError);
+            todayUsedScore = 0;
+            return;
+        }
+        
+        // 오늘 사용한 총 점수 계산
+        todayUsedScore = 0;
+        if (todayEvaluations) {
+            todayEvaluations.forEach(evaluation => {
+                if (evaluation.evaluation_scores) {
+                    evaluation.evaluation_scores.forEach(score => {
+                        // criteria에서 자기평가 음수 점수 정보 추출
+                        let actualScore = parseFloat(score.score || 0);
+                        const criteria = score.criteria || '';
+                        const selfEvalMatch = criteria.match(/\[자기평가:\s*(-?\d+)점\]/);
+                        if (selfEvalMatch) {
+                            // 자기평가 음수 점수가 있는 경우 원래 음수 점수 사용
+                            actualScore = parseFloat(selfEvalMatch[1]);
+                        }
+                        todayUsedScore += actualScore;
+                    });
+                }
+            });
+        }
+        
+        updateScoreLimitDisplay();
+    } catch (err) {
+        console.error('오늘 사용한 점수 조회 중 오류:', err);
+        todayUsedScore = 0;
+        updateScoreLimitDisplay();
+    }
+}
+
+// 총점 계산 및 표시 업데이트
+function updateTotalScore() {
+    let currentTotal = todayUsedScore;
+    
+    // 현재 입력된 점수 합산
+    peersData.forEach(peer => {
+        const scoreSelect = document.getElementById(`score_${peer.id}`);
+        if (scoreSelect && scoreSelect.value) {
+            const scoreValue = parseFloat(scoreSelect.value);
+            currentTotal += scoreValue;
+        }
+    });
+    
+    // 표시 업데이트
+    const usedScoreElement = document.getElementById('usedScore');
+    const scoreLimitBar = document.getElementById('scoreLimitBar');
+    const scoreLimitWarning = document.getElementById('scoreLimitWarning');
+    
+    if (usedScoreElement) {
+        usedScoreElement.textContent = `${currentTotal}점`;
+        
+        // 진행 바 업데이트
+        const percentage = Math.min((currentTotal / MAX_DAILY_SCORE) * 100, 100);
+        scoreLimitBar.style.width = `${percentage}%`;
+        
+        // 색상 변경 (80% 이상이면 주황색, 100% 이상이면 빨간색)
+        if (currentTotal >= MAX_DAILY_SCORE) {
+            scoreLimitBar.style.background = 'linear-gradient(90deg, #dc3545 0%, #c82333 100%)';
+            usedScoreElement.style.color = '#dc3545';
+            scoreLimitWarning.style.display = 'block';
+        } else if (currentTotal >= MAX_DAILY_SCORE * 0.8) {
+            scoreLimitBar.style.background = 'linear-gradient(90deg, #ffc107 0%, #e0a800 100%)';
+            usedScoreElement.style.color = '#ffc107';
+            scoreLimitWarning.style.display = 'none';
+        } else {
+            scoreLimitBar.style.background = 'linear-gradient(90deg, #28a745 0%, #218838 100%)';
+            usedScoreElement.style.color = '#28a745';
+            scoreLimitWarning.style.display = 'none';
+        }
+    }
+}
+
+// 점수 제한 표시 업데이트
+function updateScoreLimitDisplay() {
+    const dailyScoreLimit = document.getElementById('dailyScoreLimit');
+    if (dailyScoreLimit) {
+        dailyScoreLimit.style.display = 'block';
+        updateTotalScore();
+    }
 }
 
 // 평가 저장
@@ -281,6 +399,17 @@ async function saveEvaluations() {
     // 최소 1개 이상의 평가가 입력되었는지 확인
     if (evaluations.length === 0) {
         showError('최소 1개 이상의 평가를 입력해주세요.');
+        return;
+    }
+    
+    // 현재 입력된 총 점수 계산
+    const currentTotalScore = evaluations.reduce((sum, eval) => sum + eval.score, 0);
+    const totalScore = todayUsedScore + currentTotalScore;
+    
+    // 100점 초과 확인
+    if (totalScore > MAX_DAILY_SCORE) {
+        const remainingScore = MAX_DAILY_SCORE - todayUsedScore;
+        showError(`하루 최대 100점까지만 부여할 수 있습니다.\n오늘 이미 사용한 점수: ${todayUsedScore}점\n남은 점수: ${remainingScore}점\n현재 입력한 점수: ${currentTotalScore}점`);
         return;
     }
 
@@ -354,6 +483,10 @@ async function saveEvaluations() {
             console.error('이메일 발송 중 오류:', emailError);
         }
 
+        // 오늘 사용한 점수 업데이트
+        todayUsedScore += currentTotalScore;
+        updateScoreLimitDisplay();
+        
         // 성공 표시
         loading.style.display = 'none';
         saveBtn.disabled = false;
@@ -497,6 +630,11 @@ function resetForm() {
     saveBtn.style.display = 'none';
     success.style.display = 'none';
     peersData = [];
+    todayUsedScore = 0;
+    const dailyScoreLimit = document.getElementById('dailyScoreLimit');
+    if (dailyScoreLimit) {
+        dailyScoreLimit.style.display = 'none';
+    }
 }
 
 // 에러 메시지 표시
