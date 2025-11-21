@@ -655,11 +655,32 @@ function showSuccess(message) {
 saveBtn.addEventListener('click', saveEvaluations);
 
 // 평가자 선택 변경 시 이미지 업데이트 및 peers 목록 불러오기
-evaluatorNameInput.addEventListener('change', function() {
+evaluatorNameInput.addEventListener('change', async function() {
     updateEvaluatorImage();
     const evaluatorName = this.value.trim();
-    if (evaluatorName && (evaluationForm.style.display === 'none' || !evaluationForm.style.display)) {
-        loadPeers();
+    
+    // 평가자 이름이 변경되면 오늘 사용한 점수 초기화 및 재조회
+    todayUsedScore = 0;
+    
+    if (evaluatorName) {
+        // 오늘 사용한 점수 조회
+        await loadTodayUsedScore(evaluatorName);
+        
+        // 평가 폼이 이미 표시되어 있으면 총점 업데이트
+        if (evaluationForm.style.display === 'block') {
+            updateTotalScore();
+        }
+        
+        // 평가 폼이 표시되지 않았으면 peers 목록 불러오기
+        if (evaluationForm.style.display === 'none' || !evaluationForm.style.display) {
+            loadPeers();
+        }
+    } else {
+        // 평가자가 선택되지 않았으면 점수 제한 표시 숨기기
+        const dailyScoreLimit = document.getElementById('dailyScoreLimit');
+        if (dailyScoreLimit) {
+            dailyScoreLimit.style.display = 'none';
+        }
     }
 });
 
