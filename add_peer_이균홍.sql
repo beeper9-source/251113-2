@@ -3,3 +3,4 @@ INSERT INTO peers (name, email)
 VALUES ('이균홍', 'kkunong.lee@samsung.com')
 ON CONFLICT (name) DO UPDATE SET email = EXCLUDED.email;
 
+
