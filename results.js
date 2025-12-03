@@ -150,12 +150,25 @@ function displayResults(evaluations) {
                         displayCriteria = displayCriteria.replace(/\[자기평가:\s*-?\d+점\]\s*/, '').trim();
                     }
                     
+                    // AI 평가 정보 표시
+                    let aiEvaluationHtml = '';
+                    if (score.ai_opinion || score.ai_score) {
+                        aiEvaluationHtml = `
+                            <div class="ai-evaluation-info">
+                                <div class="ai-evaluation-label">🤖 AI 평가</div>
+                                ${score.ai_opinion ? `<div class="ai-evaluation-opinion">${score.ai_opinion}</div>` : ''}
+                                ${score.ai_score ? `<div class="ai-evaluation-score">추천 점수: ${score.ai_score}점</div>` : ''}
+                            </div>
+                        `;
+                    }
+                    
                     return `
                     <div class="score-item">
                         <div class="peer-info">
                             <div class="peer-name">${score.peers?.name || '알 수 없음'}</div>
                             ${score.peers?.email ? `<div class="peer-email">${score.peers.email}</div>` : ''}
                             <div class="criteria">${displayCriteria || '-'}</div>
+                            ${aiEvaluationHtml}
                         </div>
                         <div class="score-info">
                             <div class="score-value">${displayScore}점</div>

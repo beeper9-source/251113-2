@@ -18,7 +18,8 @@ const peersList = document.getElementById('peersList');
 let peersData = [];
 let allPeersList = [];
 let todayUsedScore = 0; // 오늘 사용한 점수
-const MAX_DAILY_SCORE = 100; // 하루 최대 점수
+const MAX_DAILY_SCORE = 200; // 하루 최대 점수
+let aiEvaluationResults = {}; // AI 평가 결과 저장 (peer_id를 키로 사용)
 
 // 이름에 따른 이미지 경로 반환 함수
 function getImagePath(name) {
@@ -216,11 +217,36 @@ function displayEvaluationForm(peers) {
             </div>
             <div class="form-group">
                 <label for="criteria_${peer.id}">평가내용</label>
-                <textarea 
-                    id="criteria_${peer.id}" 
-                    name="criteria_${peer.id}"
-                    placeholder="평가내용을 입력하세요 (선택사항)"
-                ></textarea>
+                <div class="criteria-input-container">
+                    <textarea 
+                        id="criteria_${peer.id}" 
+                        name="criteria_${peer.id}"
+                        placeholder="평가내용을 입력하세요 (선택사항)"
+                    ></textarea>
+                    <button 
+                        type="button" 
+                        class="btn-ai-evaluate" 
+                        id="aiEvaluateBtn_${peer.id}"
+                        data-peer-id="${peer.id}"
+                    >
+                        🤖 AI 평가
+                    </button>
+                </div>
+                <div id="aiEvaluationResult_${peer.id}" class="ai-evaluation-result" style="display: none;">
+                    <div class="ai-evaluation-header">
+                        <span class="ai-evaluation-label">AI 평가 결과</span>
+                    </div>
+                    <div class="ai-evaluation-content">
+                        <div class="ai-evaluation-opinion">
+                            <strong>평가 의견:</strong>
+                            <p id="aiOpinion_${peer.id}"></p>
+                        </div>
+                        <div class="ai-evaluation-score">
+                            <strong>추천 점수:</strong>
+                            <span id="aiScore_${peer.id}" class="ai-score-value"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="form-group">
                 <label for="score_${peer.id}">가점</label>
@@ -247,6 +273,17 @@ function displayEvaluationForm(peers) {
             }
             // 총점 업데이트
             updateTotalScore();
+        });
+
+        // AI 평가 버튼 이벤트 리스너
+        const aiEvaluateBtn = document.getElementById(`aiEvaluateBtn_${peer.id}`);
+        aiEvaluateBtn.addEventListener('click', function() {
+            const criteria = document.getElementById(`criteria_${peer.id}`).value.trim();
+            if (!criteria) {
+                showError('평가내용을 먼저 입력해주세요.');
+                return;
+            }
+            evaluateWithAI(peer.id, criteria);
         });
     });
 
@@ -323,6 +360,11 @@ function updateTotalScore() {
         if (scoreSelect && scoreSelect.value) {
             const scoreValue = parseFloat(scoreSelect.value);
             currentTotal += scoreValue;
+        } else {
+            // 점수가 선택되지 않았지만 AI 평가가 있는 경우 AI 추천 점수 포함
+            if (aiEvaluationResults[peer.id] && aiEvaluationResults[peer.id].score) {
+                currentTotal += aiEvaluationResults[peer.id].score;
+            }
         }
     });
     
@@ -387,11 +429,16 @@ async function saveEvaluations() {
             // 양수 점수의 경우 max_score는 50
             const maxScore = scoreValue < 0 ? Math.abs(scoreValue) : 50;
             
+            // AI 평가 정보 가져오기
+            const aiEvaluation = aiEvaluationResults[peer.id] || null;
+            
             evaluations.push({
                 peer_id: peer.id,
                 criteria: criteria,
                 score: scoreValue,
-                max_score: maxScore
+                max_score: maxScore,
+                ai_opinion: aiEvaluation ? aiEvaluation.opinion : null,
+                ai_score: aiEvaluation ? aiEvaluation.score : null
             });
         }
     });
@@ -402,14 +449,28 @@ async function saveEvaluations() {
         return;
     }
     
-    // 현재 입력된 총 점수 계산
-    const currentTotalScore = evaluations.reduce((sum, eval) => sum + eval.score, 0);
+    // 현재 입력된 총 점수 계산 (AI 추천 점수 포함)
+    let currentTotalScore = evaluations.reduce((sum, eval) => sum + eval.score, 0);
+    
+    // 점수가 선택되지 않았지만 AI 평가가 있는 경우 AI 추천 점수 추가
+    peersData.forEach(peer => {
+        const scoreSelect = document.getElementById(`score_${peer.id}`);
+        const criteria = document.getElementById(`criteria_${peer.id}`).value.trim();
+        
+        // 평가내용은 있지만 점수가 선택되지 않은 경우
+        if (criteria && (!scoreSelect || !scoreSelect.value)) {
+            if (aiEvaluationResults[peer.id] && aiEvaluationResults[peer.id].score) {
+                currentTotalScore += aiEvaluationResults[peer.id].score;
+            }
+        }
+    });
+    
     const totalScore = todayUsedScore + currentTotalScore;
     
-    // 100점 초과 확인
+    // 200점 초과 확인
     if (totalScore > MAX_DAILY_SCORE) {
         const remainingScore = MAX_DAILY_SCORE - todayUsedScore;
-        showError(`하루 최대 100점까지만 부여할 수 있습니다.\n오늘 이미 사용한 점수: ${todayUsedScore}점\n남은 점수: ${remainingScore}점\n현재 입력한 점수: ${currentTotalScore}점`);
+        showError(`하루 최대 200점까지만 부여할 수 있습니다.\n오늘 이미 사용한 점수: ${todayUsedScore}점\n남은 점수: ${remainingScore}점\n현재 입력한 점수: ${currentTotalScore}점`);
         return;
     }
 
@@ -460,8 +521,35 @@ async function saveEvaluations() {
                 peer_id: eval.peer_id,
                 criteria: criteria,
                 max_score: maxScore,
-                score: score
+                score: score,
+                ai_opinion: eval.ai_opinion || null,
+                ai_score: eval.ai_score || null
             };
+        });
+        
+        // 평가내용은 있지만 점수가 선택되지 않은 경우도 처리 (AI 추천 점수 사용)
+        peersData.forEach(peer => {
+            const criteria = document.getElementById(`criteria_${peer.id}`).value.trim();
+            const scoreSelect = document.getElementById(`score_${peer.id}`);
+            
+            // 평가내용은 있지만 점수가 선택되지 않고 AI 평가가 있는 경우
+            if (criteria && (!scoreSelect || !scoreSelect.value)) {
+                const aiEvaluation = aiEvaluationResults[peer.id];
+                if (aiEvaluation && aiEvaluation.score) {
+                    const aiScoreValue = aiEvaluation.score;
+                    const maxScore = 50; // AI 추천 점수는 기본적으로 50점 만점
+                    
+                    evaluationScores.push({
+                        evaluation_id: evaluationId,
+                        peer_id: peer.id,
+                        criteria: criteria,
+                        max_score: maxScore,
+                        score: aiScoreValue,
+                        ai_opinion: aiEvaluation.opinion,
+                        ai_score: aiScoreValue
+                    });
+                }
+            }
         });
 
         const { error: scoresError } = await supabase
@@ -492,6 +580,9 @@ async function saveEvaluations() {
         saveBtn.disabled = false;
         showSuccess('평가가 성공적으로 저장되었습니다!');
         
+        // AI 평가 결과 초기화
+        aiEvaluationResults = {};
+        
         // 폼 초기화
         setTimeout(() => {
             resetForm();
@@ -518,8 +609,32 @@ async function sendEvaluationEmails(evaluationId, evaluatorName, evaluations, pe
                 peer_name: peer?.name || '알 수 없음',
                 criteria: eval.criteria,
                 score: eval.score,
-                max_score: eval.max_score
+                max_score: eval.max_score,
+                ai_opinion: eval.ai_opinion || null,
+                ai_score: eval.ai_score || null
             };
+        });
+        
+        // AI 평가만 있고 점수가 선택되지 않은 경우도 추가
+        peersData.forEach(peer => {
+            const criteria = document.getElementById(`criteria_${peer.id}`).value.trim();
+            const scoreSelect = document.getElementById(`score_${peer.id}`);
+            
+            // 평가내용은 있지만 점수가 선택되지 않고 AI 평가가 있는 경우
+            if (criteria && (!scoreSelect || !scoreSelect.value)) {
+                const aiEvaluation = aiEvaluationResults[peer.id];
+                if (aiEvaluation && aiEvaluation.score) {
+                    peerEvaluations.push({
+                        peer_id: peer.id,
+                        peer_name: peer.name || '알 수 없음',
+                        criteria: criteria,
+                        score: aiEvaluation.score,
+                        max_score: 50,
+                        ai_opinion: aiEvaluation.opinion || null,
+                        ai_score: aiEvaluation.score || null
+                    });
+                }
+            }
         });
 
         console.log('이메일 발송 시도:', {
@@ -631,6 +746,7 @@ function resetForm() {
     success.style.display = 'none';
     peersData = [];
     todayUsedScore = 0;
+    aiEvaluationResults = {}; // AI 평가 결과 초기화
     const dailyScoreLimit = document.getElementById('dailyScoreLimit');
     if (dailyScoreLimit) {
         dailyScoreLimit.style.display = 'none';
@@ -716,6 +832,92 @@ evaluatorNameInput.addEventListener('change', async function() {
         }
     }
 });
+
+// AI 평가 함수
+async function evaluateWithAI(peerId, assessmentContent) {
+    const aiEvaluateBtn = document.getElementById(`aiEvaluateBtn_${peerId}`);
+    const aiEvaluationResult = document.getElementById(`aiEvaluationResult_${peerId}`);
+    const aiOpinion = document.getElementById(`aiOpinion_${peerId}`);
+    const aiScore = document.getElementById(`aiScore_${peerId}`);
+
+    try {
+        // 버튼 비활성화 및 로딩 표시
+        aiEvaluateBtn.disabled = true;
+        aiEvaluateBtn.textContent = '⏳ 평가 중...';
+        aiEvaluationResult.style.display = 'none';
+
+        // Edge Function 호출
+        const { data, error } = await supabase.functions.invoke('evaluate-peer-assessment', {
+            body: {
+                assessmentContent: assessmentContent
+            }
+        });
+
+        if (error) {
+            throw error;
+        }
+
+        if (!data || !data.opinion || !data.score) {
+            throw new Error('AI 평가 결과가 올바르지 않습니다.');
+        }
+
+        // 결과 표시
+        aiOpinion.textContent = data.opinion;
+        aiScore.textContent = `${data.score}점`;
+        aiEvaluationResult.style.display = 'block';
+
+        // AI 평가 결과를 전역 변수에 저장
+        aiEvaluationResults[peerId] = {
+            opinion: data.opinion,
+            score: data.score
+        };
+
+        // 추천 점수를 자동으로 선택 (선택사항)
+        const scoreSelect = document.getElementById(`score_${peerId}`);
+        if (scoreSelect) {
+            // 가장 가까운 점수 옵션 찾기
+            const recommendedScore = data.score;
+            const options = Array.from(scoreSelect.options);
+            let closestOption = null;
+            let minDiff = Infinity;
+
+            options.forEach(option => {
+                if (option.value) {
+                    const optionScore = parseFloat(option.value);
+                    const diff = Math.abs(optionScore - recommendedScore);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        closestOption = option;
+                    }
+                }
+            });
+
+            if (closestOption && minDiff <= 10) {
+                // 추천 점수와 차이가 10점 이내인 경우 자동 선택
+                scoreSelect.value = closestOption.value;
+                const scoreDisplay = document.getElementById(`scoreDisplay_${peerId}`);
+                if (scoreDisplay) {
+                    scoreDisplay.textContent = `선택된 점수: ${closestOption.value}점`;
+                }
+                updateTotalScore();
+            } else {
+                // 자동 선택되지 않았어도 총점 업데이트 (AI 추천 점수 포함)
+                updateTotalScore();
+            }
+        } else {
+            // 점수 선택이 없어도 총점 업데이트
+            updateTotalScore();
+        }
+
+    } catch (err) {
+        console.error('AI 평가 오류:', err);
+        showError(`AI 평가 중 오류가 발생했습니다: ${err.message || '알 수 없는 오류'}`);
+    } finally {
+        // 버튼 활성화
+        aiEvaluateBtn.disabled = false;
+        aiEvaluateBtn.textContent = '🤖 AI 평가';
+    }
+}
 
 // 페이지 로드 시 평가자 목록 불러오기
 window.addEventListener('DOMContentLoaded', function() {

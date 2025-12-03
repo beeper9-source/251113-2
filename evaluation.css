@@ -416,6 +416,145 @@ h2 {
     font-size: 14px;
 }
 
+.criteria-input-container {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.criteria-input-container textarea {
+    flex: 1;
+    padding: 12px;
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 100px;
+    transition: border-color 0.3s ease;
+}
+
+.criteria-input-container textarea:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.btn-ai-evaluate {
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.btn-ai-evaluate:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+.btn-ai-evaluate:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn-ai-evaluate:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.ai-evaluation-result {
+    margin-top: 15px;
+    padding: 20px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+    border: 2px solid rgba(102, 126, 234, 0.2);
+    border-radius: 12px;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.ai-evaluation-header {
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(102, 126, 234, 0.2);
+}
+
+.ai-evaluation-label {
+    font-size: 16px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.ai-evaluation-content {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.ai-evaluation-opinion {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+}
+
+.ai-evaluation-opinion strong {
+    display: block;
+    margin-bottom: 8px;
+    color: #333;
+    font-size: 14px;
+}
+
+.ai-evaluation-opinion p {
+    margin: 0;
+    color: #555;
+    line-height: 1.6;
+    font-size: 14px;
+}
+
+.ai-evaluation-score {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #764ba2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ai-evaluation-score strong {
+    color: #333;
+    font-size: 14px;
+}
+
+.ai-score-value {
+    font-size: 24px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
 .form-group textarea {
     width: 100%;
     padding: 12px;

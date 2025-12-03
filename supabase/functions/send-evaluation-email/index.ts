@@ -78,7 +78,9 @@ serve(async (req) => {
         evaluatorName,
         peerEvaluation.criteria,
         peerEvaluation.score,
-        peerEvaluation.max_score
+        peerEvaluation.max_score,
+        peerEvaluation.ai_opinion || null,
+        peerEvaluation.ai_score || null
       )
 
       // 네이버 SMTP를 사용하여 이메일 발송
@@ -162,7 +164,9 @@ function generateEmailBody(
   evaluatorName: string,
   criteria: string,
   score: number,
-  maxScore: number
+  maxScore: number,
+  aiOpinion: string | null = null,
+  aiScore: number | null = null
 ): string {
   // 음수 점수 처리 (자기평가인 경우)
   let displayScore = score
@@ -237,6 +241,31 @@ function generateEmailBody(
         .link-button:hover {
           transform: translateY(-2px);
         }
+        .ai-evaluation {
+          background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+          border: 2px solid rgba(102, 126, 234, 0.3);
+          border-left: 4px solid #667eea;
+          padding: 15px;
+          border-radius: 6px;
+          margin-top: 15px;
+        }
+        .ai-evaluation-label {
+          font-size: 0.9em;
+          font-weight: bold;
+          color: #667eea;
+          margin-bottom: 8px;
+        }
+        .ai-evaluation-opinion {
+          color: #555;
+          font-size: 0.9em;
+          line-height: 1.6;
+          margin-bottom: 8px;
+        }
+        .ai-evaluation-score {
+          color: #764ba2;
+          font-size: 0.95em;
+          font-weight: 600;
+        }
       </style>
     </head>
     <body>
@@ -253,6 +282,13 @@ function generateEmailBody(
             <strong>평가 내용:</strong><br>
             ${displayCriteria || '평가 내용 없음'}
           </div>
+          ${aiOpinion || aiScore ? `
+          <div class="ai-evaluation">
+            <div class="ai-evaluation-label">🤖 AI 평가</div>
+            ${aiOpinion ? `<div class="ai-evaluation-opinion"><strong>평가 의견:</strong> ${aiOpinion}</div>` : ''}
+            ${aiScore ? `<div class="ai-evaluation-score"><strong>추천 점수:</strong> ${aiScore}점</div>` : ''}
+          </div>
+          ` : ''}
         </div>
         
         <p>더 자세한 평가 결과는 시스템에서 확인하실 수 있습니다.</p>
