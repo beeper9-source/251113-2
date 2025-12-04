@@ -669,6 +669,77 @@ h1::after {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap;
+}
+
+.medals-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 8px;
+    flex-wrap: wrap;
+}
+
+.medal-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.medal {
+    font-size: 1.8em;
+    line-height: 1;
+    display: inline-block;
+    animation: medalPulse 2s ease-in-out infinite;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.medal-star {
+    animation: medalPulse 2s ease-in-out infinite, starTwinkle 1.5s ease-in-out infinite;
+}
+
+.medal-crown {
+    font-size: 1.6em;
+}
+
+.medal-gold {
+    filter: drop-shadow(0 2px 6px rgba(255, 215, 0, 0.6));
+}
+
+.medal-silver {
+    filter: drop-shadow(0 2px 6px rgba(192, 192, 192, 0.6));
+}
+
+.medal-bronze {
+    filter: drop-shadow(0 2px 6px rgba(205, 127, 50, 0.6));
+}
+
+@keyframes medalPulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+@keyframes starTwinkle {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+    }
+    25% {
+        opacity: 0.8;
+        transform: scale(1.1) rotate(-5deg);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.15) rotate(5deg);
+    }
+    75% {
+        opacity: 0.8;
+        transform: scale(1.1) rotate(-5deg);
+    }
 }
 
 .peer-image {

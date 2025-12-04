@@ -224,6 +224,97 @@ function calculateSummary(evaluations) {
     })).sort((a, b) => b.totalScore - a.totalScore); // 총점 기준 내림차순 정렬
 }
 
+// 메달 계산 함수
+function getMedals(totalScore) {
+    const medals = [];
+    
+    if (totalScore >= 9000) {
+        // 별 4개
+        medals.push({ type: 'star', count: 4, emoji: '⭐' });
+    } else if (totalScore >= 8000) {
+        // 금관 3개
+        medals.push({ type: 'gold-crown', count: 3, emoji: '👑' });
+    } else if (totalScore >= 7000) {
+        // 금관 2개
+        medals.push({ type: 'gold-crown', count: 2, emoji: '👑' });
+    } else if (totalScore >= 6000) {
+        // 금관 1개
+        medals.push({ type: 'gold-crown', count: 1, emoji: '👑' });
+    } else if (totalScore >= 5000) {
+        // 은관
+        medals.push({ type: 'silver-crown', count: 1, emoji: '👑' });
+    } else if (totalScore >= 4000) {
+        // 동관
+        medals.push({ type: 'bronze-crown', count: 1, emoji: '👑' });
+    } else if (totalScore >= 3000) {
+        // 금메달
+        medals.push({ type: 'gold-medal', count: 1, emoji: '🥇' });
+    } else if (totalScore >= 2000) {
+        // 은메달
+        medals.push({ type: 'silver-medal', count: 1, emoji: '🥈' });
+    } else if (totalScore >= 1000) {
+        // 동메달
+        medals.push({ type: 'bronze-medal', count: 1, emoji: '🥉' });
+    }
+    
+    return medals;
+}
+
+// 메달 HTML 생성 함수
+function generateMedalHTML(medals) {
+    if (medals.length === 0) {
+        return '';
+    }
+    
+    let html = '<div class="medals-container">';
+    
+    medals.forEach(medal => {
+        if (medal.type === 'star') {
+            // 별 4개
+            html += `<div class="medal-group medal-stars">`;
+            for (let i = 0; i < medal.count; i++) {
+                html += `<span class="medal medal-star">⭐</span>`;
+            }
+            html += `</div>`;
+        } else if (medal.type === 'gold-crown') {
+            // 금관 여러 개
+            html += `<div class="medal-group medal-crowns medal-gold">`;
+            for (let i = 0; i < medal.count; i++) {
+                html += `<span class="medal medal-crown">👑</span>`;
+            }
+            html += `</div>`;
+        } else if (medal.type === 'silver-crown') {
+            // 은관
+            html += `<div class="medal-group medal-crowns medal-silver">`;
+            html += `<span class="medal medal-crown">👑</span>`;
+            html += `</div>`;
+        } else if (medal.type === 'bronze-crown') {
+            // 동관
+            html += `<div class="medal-group medal-crowns medal-bronze">`;
+            html += `<span class="medal medal-crown">👑</span>`;
+            html += `</div>`;
+        } else if (medal.type === 'gold-medal') {
+            // 금메달
+            html += `<div class="medal-group medal-medals">`;
+            html += `<span class="medal medal-gold">🥇</span>`;
+            html += `</div>`;
+        } else if (medal.type === 'silver-medal') {
+            // 은메달
+            html += `<div class="medal-group medal-medals">`;
+            html += `<span class="medal medal-silver">🥈</span>`;
+            html += `</div>`;
+        } else if (medal.type === 'bronze-medal') {
+            // 동메달
+            html += `<div class="medal-group medal-medals">`;
+            html += `<span class="medal medal-bronze">🥉</span>`;
+            html += `</div>`;
+        }
+    });
+    
+    html += '</div>';
+    return html;
+}
+
 // 이름별 누계점수 표시
 function displaySummary() {
     const summaryResults = document.getElementById('summaryResults');
@@ -250,6 +341,10 @@ function displaySummary() {
         // 이미지 경로 결정
         const imagePath = getImagePath(item.name);
         
+        // 메달 계산
+        const medals = getMedals(item.totalScore);
+        const medalHTML = generateMedalHTML(medals);
+        
         summaryCard.innerHTML = `
             <div class="summary-header">
                 <div class="peer-info-with-image">
@@ -259,6 +354,7 @@ function displaySummary() {
                     </label>
                     ${imagePath ? `<img src="${imagePath}" alt="${item.name}" class="peer-image" data-image-src="${imagePath}" data-peer-name="${item.name}">` : ''}
                     <div class="peer-name-large">${item.name}</div>
+                    ${medalHTML}
                 </div>
                 <div class="summary-stats">
                     <div class="stat-item">
