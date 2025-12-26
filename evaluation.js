@@ -2,8 +2,10 @@
 const SUPABASE_URL = 'https://nqwjvrznwzmfytjlpfsk.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5xd2p2cnpud3ptZnl0amxwZnNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzNzA4NTEsImV4cCI6MjA3Mzk0Njg1MX0.R3Y2Xb9PmLr3sCLSdJov4Mgk1eAmhaCIPXEKq6u8NQI';
 
-// Supabase 클라이언트 초기화
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Supabase 클라이언트 초기화 (window 객체에 저장하여 전역 공유)
+if (!window.supabaseClient) {
+    window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
 
 // DOM 요소
 const evaluatorNameInput = document.getElementById('evaluatorName');
@@ -65,7 +67,7 @@ function getDayBasedRandom(max) {
 // 평가자 목록 불러오기
 async function loadEvaluatorList() {
     try {
-        const { data, error: fetchError } = await supabase
+        const { data, error: fetchError } = await window.supabaseClient
             .from('peers')
             .select('*')
             .order('name', { ascending: true });
@@ -124,7 +126,7 @@ async function loadPeers() {
         success.style.display = 'none';
 
         // Supabase에서 peers 데이터 조회
-        const { data, error: fetchError } = await supabase
+        const { data, error: fetchError } = await window.supabaseClient
             .from('peers')
             .select('*')
             .order('name', { ascending: true });
@@ -303,7 +305,7 @@ async function loadTodayUsedScore(evaluatorName) {
         const todayEnd = `${year}-${month}-${day}T23:59:59.999Z`;
         
         // 오늘 날짜의 평가 조회
-        const { data: todayEvaluations, error: evalError } = await supabase
+        const { data: todayEvaluations, error: evalError } = await window.supabaseClient
             .from('evaluations')
             .select(`
                 id,
@@ -482,7 +484,7 @@ async function saveEvaluations() {
         saveBtn.disabled = true;
 
         // 1. 평가(evaluation) 생성
-        const { data: evaluationData, error: evalError } = await supabase
+        const { data: evaluationData, error: evalError } = await window.supabaseClient
             .from('evaluations')
             .insert([
                 {
@@ -552,7 +554,7 @@ async function saveEvaluations() {
             }
         });
 
-        const { error: scoresError } = await supabase
+        const { error: scoresError } = await window.supabaseClient
             .from('evaluation_scores')
             .insert(evaluationScores);
 
@@ -648,7 +650,7 @@ async function sendEvaluationEmails(evaluationId, evaluatorName, evaluations, pe
         console.log('Edge Function URL:', functionUrl);
 
         // Supabase Edge Function 호출
-        const { data, error } = await supabase.functions.invoke('send-evaluation-email', {
+        const { data, error } = await window.supabaseClient.functions.invoke('send-evaluation-email', {
             body: {
                 evaluationId: evaluationId,
                 evaluatorName: evaluatorName,
@@ -847,7 +849,7 @@ async function evaluateWithAI(peerId, assessmentContent) {
         aiEvaluationResult.style.display = 'none';
 
         // Edge Function 호출
-        const { data, error } = await supabase.functions.invoke('evaluate-peer-assessment', {
+        const { data, error } = await window.supabaseClient.functions.invoke('evaluate-peer-assessment', {
             body: {
                 assessmentContent: assessmentContent
             }
